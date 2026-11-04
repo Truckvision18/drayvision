@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+apps/mobile
+services/routing/extracts
+services/routing/valhalla_tiles
+data/raw
+.env
+.git

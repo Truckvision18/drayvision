@@ -1,0 +1,30 @@
+{
+  "name": "drayvision",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DrayVision \u2014 truck-safe drayage navigation (monorepo)",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "packages/shared",
+    "services/api"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/shared services/api",
+    "typecheck": "tsc -b packages/shared services/api && tsc -p packages/shared/tsconfig.test.json && tsc -p services/api/tsconfig.test.json && tsc -p tsconfig.json && npm --prefix apps/mobile run typecheck",
+    "test": "npm run test:node && npm run test:mobile",
+    "test:node": "vitest run",
+    "test:mobile": "npm --prefix apps/mobile test -- --ci",
+    "smoke": "node scripts/smoke.mjs",
+    "rights:doc": "npm -w @drayvision/api run rights:doc",
+    "dev:api": "npm -w @drayvision/api run dev"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.0"
+  }
+}

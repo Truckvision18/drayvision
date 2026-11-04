@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "composite": false, "noEmit": true, "declaration": false, "declarationMap": false, "rootDir": "." },
+  "include": ["test", "scripts", "vitest.config.ts"],
+  "references": [{ "path": "services/api" }]
+}

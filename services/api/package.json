@@ -1,0 +1,26 @@
+{
+  "name": "@drayvision/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DrayVision backend API — the only place metered provider keys live",
+  "type": "module",
+  "main": "./dist/src/server.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/src/server.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "rights:doc": "tsx scripts/gen-rights-doc.ts"
+  },
+  "dependencies": {
+    "@drayvision/shared": "0.1.0",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.8.0",
+    "pg": "^8.16.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.0",
+    "tsx": "^4.20.0"
+  }
+}

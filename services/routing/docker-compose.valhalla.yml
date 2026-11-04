@@ -1,0 +1,29 @@
+# Phase 4 — self-hosted Valhalla. Included by infra/docker-compose.yml under the `routing`
+# profile, because it needs a built tile set first:
+#
+#   ./services/routing/build-tiles.sh services/routing/extracts/<region>-<YYYY-MM-DD>.osm.pbf
+#   docker compose -f infra/docker-compose.yml --profile routing up -d
+#
+# Tiles are built ONCE by build-tiles.sh (reproducible, dated) and then served read-only here.
+services:
+  valhalla:
+    image: ghcr.io/valhalla/valhalla-scripted:${VALHALLA_IMAGE_TAG:-3.5.1}
+    profiles: ["routing"]
+    ports:
+      - "${VALHALLA_PORT:-8002}:8002"
+    volumes:
+      - ./valhalla_tiles:/custom_files
+    environment:
+      # Serve pre-built tiles only; never rebuild silently at container start.
+      use_tiles_ignore_pbf: "True"
+      force_rebuild: "False"
+      build_admins: "False"
+      build_time_zones: "False"
+      server_threads: "${VALHALLA_THREADS:-2}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8002/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
