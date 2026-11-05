@@ -5,7 +5,21 @@ import { apiBaseUrl, config } from '../config';
  * The ONLY network client in the app. It talks to the DrayVision API, which holds every
  * metered key, caches, and meters. Do not add direct calls to tile/toll/traffic/imagery vendors.
  */
-export class ApiClient {
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** The routing calls the navigation layer needs — an interface so tests can fake it. */
+export interface RoutingApi {
+  route(origin: LngLat, destination: LngLat, profile: TruckProfile): Promise<{ routes: Route[] }>;
+}
+
+export class ApiClient implements RoutingApi {
   constructor(
     readonly baseUrl: string = apiBaseUrl(),
     private readonly deviceId: string = 'unregistered',
@@ -26,7 +40,10 @@ export class ApiClient {
         signal: controller.signal,
         headers: { 'content-type': 'application/json', 'x-device-id': this.deviceId, ...(init.headers ?? {}) },
       });
-      if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new ApiError(res.status, body?.error ?? `API ${path} → ${res.status}`);
+      }
       return (await res.json()) as T;
     } finally {
       clearTimeout(timer);

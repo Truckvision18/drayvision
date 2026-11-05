@@ -1,3 +1,5 @@
+import type { TruckProfile } from '@drayvision/shared';
+
 export type MobileEnvironment = 'dev' | 'pilot' | 'prod';
 
 /**
@@ -35,12 +37,23 @@ export interface MobileConfig {
   };
   /** Turn-by-turn (Phases 4–5). */
   navigation: {
+    /** Cross-track distance (m) beyond which a fix counts as off-route. */
     offRouteThresholdM: number;
+    /** Off-route must persist this long before we reroute (filters GPS jitter). */
     offRouteConfirmSeconds: number;
+    /** Remaining distance (m) at which the trip counts as arrived. */
     arrivalRadiusM: number;
-    /** Distances (m) before a maneuver at which to announce it. */
+    /** Distances (m) before a maneuver at which to announce it, largest first. */
     announceAtM: number[];
+    /** Fixes with worse horizontal accuracy (m) are ignored for progress / off-route. */
+    maxAccuracyM: number;
+    /** How far (m) behind the last snapped position a fix may snap (GPS jitter, not U-turns). */
+    snapBacktrackM: number;
+    /** Minimum time between reroute requests. */
+    rerouteMinIntervalSeconds: number;
   };
+  /** Rig used until the driver sets their own in Settings. SI units. */
+  defaultTruckProfile: TruckProfile;
   refresh: {
     trafficSeconds: number;
     camerasSeconds: number;

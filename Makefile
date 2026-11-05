@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose -f infra/docker-compose.yml --env-file .env
 
 .DEFAULT_GOAL := help
-.PHONY: help setup install env up up-routing down logs ps test test-node test-mobile typecheck check smoke rights-doc migrate
+.PHONY: help setup install env up up-routing down logs ps test test-node test-mobile typecheck check smoke rights-doc migrate routing-deps tiles routing-it
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -47,6 +47,16 @@ check: typecheck test ## Typecheck + tests
 
 smoke: ## Fail loudly on missing keys, then verify /health on the running stack
 	npx tsx scripts/smoke.ts
+
+routing-deps: ## Install the local routing toolchain (pyvalhalla + pyosmium; use a venv)
+	pip install -r services/routing/requirements.txt
+
+tiles: ## Build Valhalla tiles: make tiles EXTRACT=services/routing/extracts/<region>-<YYYY-MM-DD>.osm.pbf SHA=<sha256> [VALHALLA_BUILDER=local]
+	@test -n "$(EXTRACT)" || { echo "usage: make tiles EXTRACT=<region-YYYY-MM-DD.osm.pbf> SHA=<sha256>"; exit 1; }
+	services/routing/build-tiles.sh "$(EXTRACT)" $(SHA)
+
+routing-it: ## Real-Valhalla integration tests on the synthetic network (needs routing-deps)
+	services/routing/it.sh
 
 rights-doc: ## Regenerate docs/RIGHTS.md from the rights registry
 	npm run rights:doc

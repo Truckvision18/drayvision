@@ -52,6 +52,8 @@ export function reduceMotion(g: GateState, s: MotionSample, cfg: MobileConfig['s
 /** Called on a timer: with no recent samples, fall back to UNKNOWN. */
 export function checkStale(g: GateState, now: number, cfg: MobileConfig['safety']): GateState {
   if (g.lastSampleAt === null || (now - g.lastSampleAt) / 1000 > cfg.staleAfterSeconds) {
+    // Return the same object when nothing changes, so a periodic check doesn't re-render the app.
+    if (g.state === 'unknown' && g.candidate === null && g.candidateSince === null) return g;
     return { ...g, state: 'unknown', candidate: null, candidateSince: null };
   }
   return g;

@@ -86,6 +86,14 @@ export const defaults: Omit<AppConfig, 'environment'> = {
   routing: {
     timeoutMs: 10_000,
     defaultValhallaUrl: 'http://localhost:8002',
+    alternates: 2,
+    truckCosting: {
+      useHighways: 1.0, // drayage: prefer highways over local streets
+      useTolls: 0.5, // neutral until per-trip toll preference lands
+      useLivingStreets: 0.0, // avoid residential "living streets"
+      useTracks: 0.0, // never route a container rig onto tracks
+      topSpeedKph: 100, // ~62 mph — realistic loaded-rig ETA
+    },
   },
   rights: {
     allowUnverified: true,

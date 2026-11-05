@@ -1,5 +1,6 @@
 export * from './geo.js';
 export * from './units.js';
+export * from './geometry.js';
 export * from './truck.js';
 export * from './hazard.js';
 export * from './route.js';

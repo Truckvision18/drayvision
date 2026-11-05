@@ -15,6 +15,12 @@ jest.mock('@maplibre/maplibre-react-native', () => {
     Marker: host('MapLibreMarker'),
     GeoJSONSource: host('MapLibreGeoJSONSource'),
     Layer: host('MapLibreLayer'),
+    UserLocation: host('MapLibreUserLocation'),
+    LocationManager: {
+      requestPermissions: async () => false,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+    },
   };
 });
 

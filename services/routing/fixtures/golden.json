@@ -1,0 +1,11 @@
+{
+  "_comment": "Golden cases for the SYNTHETIC ladder network (fixtures/ladder.json). Each routes along one row, west end to east end. 'avoid' = the route must not touch that row's restricted middle segment; 'through' = it should take it (proves the restriction, not the network, caused the detour). Real-world golden routes live in data/test-routes.",
+  "cases": [
+    { "id": "low-bridge-tall-rig", "row": "low-bridge", "profile": { "heightM": 4.11 }, "expect": "avoid" },
+    { "id": "low-bridge-short-rig", "row": "low-bridge", "profile": { "heightM": 3.0 }, "expect": "through" },
+    { "id": "no-trucks", "row": "no-trucks", "profile": { "heightM": 3.0 }, "expect": "avoid" },
+    { "id": "weight-limit-loaded", "row": "weight-limit", "profile": { "heightM": 3.0, "grossWeightKg": 36000 }, "expect": "avoid" },
+    { "id": "weight-limit-light", "row": "weight-limit", "profile": { "heightM": 3.0, "grossWeightKg": 8000 }, "expect": "through" },
+    { "id": "clear-row-control", "row": "clear-north", "profile": {}, "expect": "through" }
+  ]
+}

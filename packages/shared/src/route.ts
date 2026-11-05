@@ -2,14 +2,48 @@ import type { IsoDateTime, LineCoordinates, LngLat } from './geo.js';
 import type { Hazard } from './hazard.js';
 import type { TollEstimate } from './toll.js';
 
+/**
+ * Engine-independent maneuver kinds. The Valhalla adapter maps its numeric codes onto these;
+ * anything we don't model yet becomes 'other' (the text instruction still applies).
+ */
+export type ManeuverType =
+  | 'depart'
+  | 'arrive'
+  | 'continue'
+  | 'slight-right'
+  | 'right'
+  | 'sharp-right'
+  | 'uturn'
+  | 'sharp-left'
+  | 'left'
+  | 'slight-left'
+  | 'ramp'
+  | 'exit-right'
+  | 'exit-left'
+  | 'keep-straight'
+  | 'keep-right'
+  | 'keep-left'
+  | 'merge'
+  | 'roundabout-enter'
+  | 'roundabout-exit'
+  | 'ferry'
+  | 'other';
+
 export interface Maneuver {
+  /** Screen text, e.g. "Turn left onto Doremus Ave." */
   instruction: string;
-  /** Valhalla maneuver type code or our own enum later (Phase 4). */
-  type: string;
+  /** Text for voice guidance before the maneuver, when the engine provides it. */
+  verbalInstruction?: string | undefined;
+  type: ManeuverType;
+  /** Length of road covered by this maneuver (from its start to the next maneuver). */
   distanceM: number;
   durationS: number;
+  /** Where the maneuver happens. */
   location: LngLat;
   streetNames: string[];
+  /** Index into Route.geometry where this maneuver begins / ends — used for progress tracking. */
+  beginShapeIndex: number;
+  endShapeIndex: number;
 }
 
 export interface RouteLeg {

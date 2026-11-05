@@ -30,6 +30,21 @@ const defaults: MobileConfig = {
     offRouteConfirmSeconds: 4,
     arrivalRadiusM: 50,
     announceAtM: [800, 300, 60],
+    maxAccuracyM: 50,
+    snapBacktrackM: 30,
+    rerouteMinIntervalSeconds: 10,
+  },
+  defaultTruckProfile: {
+    id: 'default-40ft',
+    name: "40' container on chassis",
+    heightM: 4.11, // 13'6"
+    widthM: 2.59, // 8'6"
+    lengthM: 21.03, // 69'
+    grossWeightKg: 36_287, // 80,000 lb
+    axleCount: 5,
+    chassis: '40ft',
+    hazmat: [],
+    twic: true,
   },
   refresh: {
     trafficSeconds: 120,

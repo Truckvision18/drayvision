@@ -85,8 +85,9 @@ The app opens to an empty map on the **Plan** screen. The map style comes from
 | Smoke test against a running stack | `make smoke` (`SMOKE_API_URL=…` to point elsewhere) |
 | Apply DB migrations to `$DATABASE_URL` | `make migrate` (the local container applies them on first boot) |
 | Regenerate `docs/RIGHTS.md` after a registry change | `make rights-doc` (a test fails if you forget) |
-| Build routing tiles (Phase 4) | `services/routing/build-tiles.sh services/routing/extracts/<region>-<YYYY-MM-DD>.osm.pbf <sha256>` |
+| Build routing tiles (Phase 4) | `make tiles EXTRACT=services/routing/extracts/<region>-<YYYY-MM-DD>.osm.pbf SHA=<sha256>` |
 | Start Valhalla once tiles exist | `make up-routing` |
+| Real-engine routing tests (synthetic network) | `make routing-deps` once (in a venv), then `make routing-it` |
 | Run the API outside Docker | `npm run dev:api` (uses `.env` values in your shell) |
 
 ### `/health`
@@ -108,6 +109,35 @@ The app opens to an empty map on the **Plan** screen. The map style comes from
 Live tolls, 511NY and Google imagery are shells for now: they check their keys at boot and
 return `501` until their phase lands. MapTiler (tiles) and Valhalla (routing) are wired.
 
+`POST /route` returns `{ routes, rejected }`. `routes` holds only routes that passed safety
+validation, each stamped with the routing graph version (the OSM extract date) and the
+restrictions version. It returns **422** when no truck-legal route exists and **502** when the
+routing engine is unreachable.
+
+## Phase 4: routing and turn-by-turn
+
+- **Engine:** self-hosted Valhalla 3.9.1 with reproducible, dated tile builds, either through
+  Docker or through local `pyvalhalla` (see `services/routing/README.md`). Truck preferences are
+  set in config (`routing.truckCosting`, `routing.alternates`).
+- **Proof:** `make routing-it` runs a real Valhalla on a synthetic network with a low bridge, a
+  no-trucks road and a weight limit. It checks that the engine and our API route around each one.
+- **App:**
+  - Long-press the map to set a destination. The app gets truck-safe routes from the API,
+    starting from the current GPS fix.
+  - Pick a route and press Start. Turn-by-turn shows a maneuver banner, the distance to the
+    turn, and the remaining time and distance.
+  - If the driver stays off route long enough, the app reroutes from where they are.
+  - The trip ends with an arrival screen.
+- **Tuning:** thresholds (off-route distance and confirm time, arrival radius, announcement
+  distances, GPS accuracy cut-off, reroute rate limit) live in `apps/mobile/src/config`.
+- **Shared code:** snapping GPS to the route uses the same geometry code
+  (`packages/shared/src/geometry.ts`) that the API uses to match restrictions to a route.
+- **Not in Phase 4 yet:**
+  - Address search: it needs a geocoder, which is a metered provider we haven't chosen.
+  - Spoken voice: announcements are produced and shown on screen, and a text-to-speech engine
+    plugs into `NavProvider`'s `announce`.
+  - Editing the truck profile: the Settings screen shows the default rig.
+
 ### Environments
 
 | `DRAYVISION_ENV` | Providers | Rights | Monthly budget guard rail |
@@ -119,8 +149,7 @@ return `501` until their phase lands. MapTiler (tiles) and Valhalla (routing) ar
 
 ## Known scaffold limits
 
-- The Valhalla image (`ghcr.io/valhalla/valhalla-scripted`) runs only under the `routing`
-  profile, because it needs built tiles first.
+- Valhalla runs only under the `routing` profile, because it needs built tiles first.
 - `data/restrictions`, `data/facilities` and `data/test-routes` ship **empty on purpose**. No
   unverified safety data goes in.
 - Metering is in memory for now. Phase 13 persists it to the `metered_calls` table.

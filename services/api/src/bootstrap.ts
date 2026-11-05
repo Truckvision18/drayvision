@@ -40,7 +40,7 @@ export function createContext(config: AppConfig = loadConfig(), env: NodeJS.Proc
 
   return {
     config,
-    providers: createProviders(config, env),
+    providers: createProviders(config, env, { routingGraphVersion: data.routingGraphVersion }),
     cache,
     meter: new Meter(config.budgets),
     repo,

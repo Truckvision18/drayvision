@@ -43,8 +43,8 @@ export const mockRouting: RoutingProvider = {
             distanceM,
             durationS,
             maneuvers: [
-              { instruction: 'Depart', type: 'depart', distanceM, durationS, location: origin, streetNames: [] },
-              { instruction: 'Arrive', type: 'arrive', distanceM: 0, durationS: 0, location: destination, streetNames: [] },
+              { instruction: 'Depart', type: 'depart', distanceM, durationS, location: origin, streetNames: [], beginShapeIndex: 0, endShapeIndex: 1 },
+              { instruction: 'Arrive', type: 'arrive', distanceM: 0, durationS: 0, location: destination, streetNames: [], beginShapeIndex: 1, endShapeIndex: 1 },
             ],
           },
         ],

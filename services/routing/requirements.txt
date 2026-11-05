@@ -1,0 +1,4 @@
+# Local (non-Docker) routing toolchain: same Valhalla version as the Docker image, plus pyosmium
+# for generating the synthetic fixture network.   pip install -r services/routing/requirements.txt
+pyvalhalla==3.9.1
+osmium==4.3.2

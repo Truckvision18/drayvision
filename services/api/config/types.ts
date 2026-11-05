@@ -100,6 +100,17 @@ export const configSchema = z.object({
   routing: z.object({
     timeoutMs: positiveInt,
     defaultValhallaUrl: z.string().url(),
+    /** Extra alternative routes to request (each is safety-validated independently). */
+    alternates: z.number().int().min(0).max(3),
+    /** Valhalla truck costing preferences, 0 (avoid) .. 1 (prefer). Hard limits come from the TruckProfile. */
+    truckCosting: z.object({
+      useHighways: z.number().min(0).max(1),
+      useTolls: z.number().min(0).max(1),
+      useLivingStreets: z.number().min(0).max(1),
+      useTracks: z.number().min(0).max(1),
+      /** km/h cap applied to ETA calculations; null = engine default. */
+      topSpeedKph: z.number().positive().nullable(),
+    }),
   }),
   rights: z.object({
     /** Allow sources whose rights entry is still "unverified". Must be false in pilot/prod. */

@@ -1,49 +1,68 @@
-import type { Route } from '@drayvision/shared';
-import { initialNav, navReducer, type NavState } from '../src/navigation/navState';
+import { activeRoute, initialNav, navReducer, type NavEvent, type NavState } from '../src/navigation/navState';
+import type { Progress } from '../src/navigation/progress';
+import { lRoute } from './fixtures';
 
-const mkRoute = (id: string, status: Route['validation']['status'], maneuvers = 2): Route => ({
-  id,
-  profileId: 'p',
-  origin: { lng: 0, lat: 0 },
-  destination: { lng: 1, lat: 1 },
-  geometry: [],
-  distanceM: 1000,
-  durationS: 60,
-  legs: [
-    {
-      distanceM: 1000,
-      durationS: 60,
-      maneuvers: Array.from({ length: maneuvers }, (_, i) => ({ instruction: `m${i}`, type: 't', distanceM: 1, durationS: 1, location: { lng: 0, lat: 0 }, streetNames: [] })),
-    },
-  ],
-  hazards: [],
-  validation: { status, violations: [], warnings: [], restrictionsVersion: 'v', validatedAt: '2026-01-01T00:00:00Z' },
-  graphVersion: 'g',
-});
-
-const run = (...events: Parameters<typeof navReducer>[1][]): NavState => events.reduce(navReducer, initialNav);
+const dest = { lng: 0.01, lat: 0.01 };
+const run = (...events: NavEvent[]): NavState => events.reduce(navReducer, initialNav);
+const toPreview = (...routes: ReturnType<typeof lRoute>[]): NavEvent[] => [
+  { type: 'SET_DESTINATION', destination: dest },
+  { type: 'PLAN' },
+  { type: 'ROUTES_LOADED', routes },
+];
+const progress = { nextManeuverIndex: 1 } as Progress;
 
 describe('navigation state', () => {
+  it('cannot plan without a destination', () => {
+    expect(run({ type: 'PLAN' })).toEqual(initialNav);
+  });
+
   it('never offers a route that failed validation', () => {
-    const s = run({ type: 'PLAN' }, { type: 'ROUTES_LOADED', routes: [mkRoute('bad', 'fail'), mkRoute('ok', 'pass')] });
+    const s = run(...toPreview(lRoute('bad', 'fail'), lRoute('ok', 'pass')));
     expect(s.phase === 'previewing' && s.routes.map((r) => r.id)).toEqual(['ok']);
   });
 
-  it('errors when every route failed validation', () => {
-    expect(run({ type: 'ROUTES_LOADED', routes: [mkRoute('bad', 'fail')] }).phase).toBe('error');
+  it('errors when every route failed validation, keeping the destination for retry', () => {
+    const s = run(...toPreview(lRoute('bad', 'fail')));
+    expect(s).toMatchObject({ phase: 'error', destination: dest });
+    expect(navReducer(s, { type: 'PLAN' }).phase).toBe('planning');
   });
 
-  it('runs preview → navigate → arrive', () => {
-    const s = run({ type: 'ROUTES_LOADED', routes: [mkRoute('a', 'pass', 2)] }, { type: 'START' }, { type: 'ADVANCE_MANEUVER' }, { type: 'ADVANCE_MANEUVER' });
-    expect(s.phase).toBe('arrived');
+  it('ignores routes that arrive after the user cancelled', () => {
+    expect(run({ type: 'SET_DESTINATION', destination: dest }, { type: 'PLAN' }, { type: 'CANCEL' }, { type: 'ROUTES_LOADED', routes: [lRoute()] })).toEqual(initialNav);
   });
 
-  it('rejects an unsafe reroute', () => {
-    const s = run({ type: 'ROUTES_LOADED', routes: [mkRoute('a', 'pass')] }, { type: 'START' }, { type: 'OFF_ROUTE' }, { type: 'REROUTED', route: mkRoute('b', 'fail') });
-    expect(s).toEqual({ phase: 'error', message: 'Reroute failed safety validation' });
+  it('runs preview → navigate → progress → arrive', () => {
+    const s = run(...toPreview(lRoute('a'), lRoute('b')), { type: 'SELECT', index: 1 }, { type: 'START' }, { type: 'PROGRESS', progress });
+    expect(s).toMatchObject({ phase: 'navigating', progress });
+    expect(s.phase === 'navigating' && s.route.id).toBe('b');
+    expect(navReducer(s, { type: 'ARRIVED' }).phase).toBe('arrived');
   });
 
-  it('ignores START outside preview', () => {
-    expect(run({ type: 'START' })).toEqual(initialNav);
+  it('records the last announcement for on-screen display', () => {
+    const s = run(...toPreview(lRoute()), { type: 'START' }, { type: 'ANNOUNCE', text: 'Turn right.' });
+    expect(s.phase === 'navigating' && s.lastAnnouncement).toBe('Turn right.');
+  });
+
+  it('reroutes onto the first safe route and rejects an all-unsafe reroute', () => {
+    const navigating = run(...toPreview(lRoute('a')), { type: 'START' }, { type: 'OFF_ROUTE' });
+    expect(navigating.phase).toBe('rerouting');
+    const ok = navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'fail'), lRoute('y')] });
+    expect(ok.phase === 'navigating' && ok.route.id).toBe('y');
+    expect(navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'fail')] })).toMatchObject({
+      phase: 'error',
+      message: 'Reroute failed safety validation',
+    });
+  });
+
+  it('will not change destination mid-trip', () => {
+    const s = run(...toPreview(lRoute()), { type: 'START' }, { type: 'SET_DESTINATION', destination: { lng: 5, lat: 5 } });
+    expect(s.phase).toBe('navigating');
+    expect(s.destination).toEqual(dest);
+  });
+
+  it('activeRoute follows the selection and the trip', () => {
+    const p = run(...toPreview(lRoute('a'), lRoute('b')), { type: 'SELECT', index: 1 });
+    expect(activeRoute(p)?.id).toBe('b');
+    expect(activeRoute(initialNav)).toBeNull();
   });
 });

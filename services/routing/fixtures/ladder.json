@@ -1,0 +1,15 @@
+{
+  "_comment": "Synthetic 'ladder' road network for routing integration tests. NOT real-world data. Placed near Null Island so it can never be mistaken for a real place. Each restricted row has a middle segment carrying one truck restriction; the two side columns let a truck detour via other rows. Generated into a dated .osm.pbf by make_fixture.py.",
+  "snapshotDate": "2026-11-05",
+  "origin": { "lng": 0.0, "lat": 0.0 },
+  "rowSpacingDeg": 0.01,
+  "rowLengthDeg": 0.02,
+  "rows": [
+    { "id": "clear-south", "tags": {} },
+    { "id": "low-bridge", "tags": { "maxheight": "3.5" } },
+    { "id": "no-trucks", "tags": { "hgv": "no" } },
+    { "id": "weight-limit", "tags": { "maxweight": "10" } },
+    { "id": "clear-north", "tags": {} }
+  ],
+  "baseTags": { "highway": "secondary", "oneway": "no", "maxspeed": "50" }
+}

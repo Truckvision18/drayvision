@@ -9,12 +9,22 @@ export * from './types.js';
 export { mockProviders } from './mock.js';
 
 /** Build providers from config. Missing keys for a selected live provider throw here, at boot. */
-export function createProviders(config: AppConfig, env: NodeJS.ProcessEnv = process.env): Providers {
+export function createProviders(
+  config: AppConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  opts: { routingGraphVersion?: string } = {},
+): Providers {
   const p = config.providers;
   return {
     routing:
       p.routing === 'valhalla'
-        ? new ValhallaRouting(env.VALHALLA_URL || config.routing.defaultValhallaUrl, config.routing.timeoutMs)
+        ? new ValhallaRouting({
+            baseUrl: env.VALHALLA_URL || config.routing.defaultValhallaUrl,
+            timeoutMs: config.routing.timeoutMs,
+            alternates: config.routing.alternates,
+            truckCosting: config.routing.truckCosting,
+            graphVersion: opts.routingGraphVersion ?? 'not-built',
+          })
         : mockRouting,
     tiles: p.tiles === 'maptiler' ? new MapTilerTiles(env.MAPTILER_KEY ?? '') : mockTiles,
     tolls: p.tolls === 'tollsmart' ? new TollSmartTolls(env) : mockTolls,
