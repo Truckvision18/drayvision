@@ -12,6 +12,8 @@ import { MemoryProfileRepository } from './profiles/repo.js';
 import { MemoryRepository } from './db/repo.js';
 import { fromRoot } from './paths.js';
 import { createProviders } from './providers/index.js';
+import { createTileUpstream } from './tiles/service.js';
+import { MemoryMapUsage, PgMapUsage } from './tiles/usage.js';
 
 export class MissingEnvError extends Error {
   constructor(readonly missing: string[], env: string) {
@@ -52,6 +54,9 @@ export function createContext(config: AppConfig = loadConfig(), env: NodeJS.Proc
     meter: new Meter(config.budgets),
     repo,
     profiles,
+    tiles: createTileUpstream(config, env),
+    mapUsage: pool ? new PgMapUsage(pool, config.analytics.flushIntervalSeconds) : new MemoryMapUsage(),
+    env,
     data,
     build: { version: readVersion(), gitSha: env.GIT_SHA ?? 'dev' },
     external: { db: !!env.DATABASE_URL, cache: useRedis },

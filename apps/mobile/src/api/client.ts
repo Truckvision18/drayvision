@@ -1,11 +1,26 @@
 import {
+  CamerasResponseSchema,
+  FacilitiesResponseSchema,
+  MapUsageResponseSchema,
+  RestrictionsResponseSchema,
+  SponsoredResponseSchema,
+  TileConfigSchema,
+  TrafficResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
   ProfilesResponseSchema,
   RouteResponseSchema,
   TruckProfileSchema,
   type ApiError as ApiErrorBody,
+  type Camera,
+  type Facility,
+  type Hazard,
   type HealthResponse,
+  type MapSessionStart,
+  type MapUsageResponse,
+  type SponsoredListing,
+  type TileConfig,
+  type TrafficEvent,
   type RouteRequest,
   type RouteResponse,
   type TruckProfile,
@@ -46,17 +61,41 @@ export interface ProfilesApi {
   deleteProfile(id: string): Promise<void>;
 }
 
-export class ApiClient implements RoutingApi, ProfilesApi {
+/** Map calls: tile config, overlay layers, usage analytics. */
+export type BBox = readonly [west: number, south: number, east: number, north: number];
+export interface MapApi {
+  tileConfig(): Promise<TileConfig>;
+  reportMapSession(s: MapSessionStart): Promise<void>;
+  myMapUsage(day?: string): Promise<MapUsageResponse>;
+  restrictions(bbox: BBox): Promise<Hazard[]>;
+  traffic(bbox: BBox): Promise<TrafficEvent[]>;
+  cameras(bbox: BBox): Promise<Camera[]>;
+  facilities(bbox: BBox): Promise<Facility[]>;
+  sponsored(bbox: BBox): Promise<SponsoredListing[]>;
+}
+
+export type DrayVisionApi = RoutingApi & ProfilesApi & MapApi;
+
+export class ApiClient implements DrayVisionApi {
   constructor(
     readonly baseUrl: string = apiBaseUrl(),
-    private readonly deviceId: string = 'unregistered',
+    private deviceId: string = 'unregistered',
     private readonly accountId: string | null = config.account.devAccountId,
     private readonly fetchImpl: typeof fetch = (...a) => fetch(...a),
   ) {}
 
-  /** MapLibre style URL served (and key-stripped) by our API's tile proxy. */
+  /** Fallback style URL (active source) until /tiles/config has been fetched. */
   get styleUrl(): string {
     return `${this.baseUrl}/tiles/style.json`;
+  }
+
+  /** Stable per-install id, set once loaded from device storage; sent on every request. */
+  setDeviceId(id: string): void {
+    this.deviceId = id;
+  }
+
+  get device(): string {
+    return this.deviceId;
   }
 
   private async request<S extends z.ZodTypeAny | null>(schema: S, path: string, init: RequestInit = {}): Promise<S extends z.ZodTypeAny ? z.output<S> : void> {
@@ -110,6 +149,41 @@ export class ApiClient implements RoutingApi, ProfilesApi {
 
   async deleteProfile(id: string): Promise<void> {
     await this.request(null, `/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  // ---- map --------------------------------------------------------------------------------
+  tileConfig(): Promise<TileConfig> {
+    return this.request(TileConfigSchema, '/tiles/config');
+  }
+
+  async reportMapSession(s: MapSessionStart): Promise<void> {
+    await this.request(null, '/analytics/map-sessions', { method: 'POST', body: JSON.stringify(s) });
+  }
+
+  myMapUsage(day?: string): Promise<MapUsageResponse> {
+    return this.request(MapUsageResponseSchema, `/usage/maps/me${day ? `?day=${day}` : ''}`);
+  }
+
+  private bbox = (b: BBox): string => `bbox=${b.map((n) => n.toFixed(5)).join(',')}`;
+
+  async restrictions(b: BBox): Promise<Hazard[]> {
+    return (await this.request(RestrictionsResponseSchema, `/restrictions?${this.bbox(b)}`)).restrictions;
+  }
+
+  async traffic(b: BBox): Promise<TrafficEvent[]> {
+    return (await this.request(TrafficResponseSchema, `/traffic?${this.bbox(b)}`)).events;
+  }
+
+  async cameras(b: BBox): Promise<Camera[]> {
+    return (await this.request(CamerasResponseSchema, `/cameras?${this.bbox(b)}`)).cameras;
+  }
+
+  async facilities(b: BBox): Promise<Facility[]> {
+    return (await this.request(FacilitiesResponseSchema, `/facilities?${this.bbox(b)}`)).facilities;
+  }
+
+  async sponsored(b: BBox): Promise<SponsoredListing[]> {
+    return (await this.request(SponsoredResponseSchema, `/sponsored?${this.bbox(b)}`)).listings;
   }
 }
 

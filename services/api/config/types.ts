@@ -19,6 +19,12 @@ export const SECRET_ENV_VARS = [
   'REDIS_URL',
   'VALHALLA_URL',
   'MAPTILER_KEY',
+  /** Restricted, client-safe MapTiler key — only used when tiles.delivery = direct. */
+  'MAPTILER_CLIENT_KEY',
+  /** Base URL of our own tile server (tiles.source = self-hosted). */
+  'SELF_HOSTED_TILES_URL',
+  /** Guards the all-devices usage endpoint outside dev/test. */
+  'OPS_TOKEN',
   'TOLLSMART_API_KEY',
   'TOLLSMART_BASE_URL',
   'GOOGLE_MAPS_API_KEY',
@@ -43,7 +49,6 @@ export const configSchema = z.object({
   }),
   providers: z.object({
     routing: z.enum(['mock', 'valhalla']),
-    tiles: z.enum(['mock', 'maptiler']),
     tolls: z.enum(['mock', 'tollsmart']),
     traffic: z.enum(['mock', 'ny511']),
     cameras: z.enum(['mock', 'ny511']),
@@ -115,6 +120,71 @@ export const configSchema = z.object({
       /** km/h cap applied to ETA calculations; null = engine default. */
       topSpeedKph: z.number().positive().nullable(),
     }),
+  }),
+  /**
+   * Base map tiles. `source` and `delivery` can be flipped per deployment (TILE_SOURCE /
+   * TILE_DELIVERY env vars) without a code change or an app release: the app reads
+   * GET /tiles/config at launch.
+   */
+  tiles: z.object({
+    source: z.enum(['maptiler', 'self-hosted', 'mock']),
+    delivery: z.enum(['proxy', 'direct']),
+    maptiler: z.object({
+      baseUrl: z.string().url(),
+      styleId: z.string().min(1),
+      /**
+       * MapTiler Cloud Terms §6: proxying needs MapTiler's written approval. Pilot/prod refuse to
+       * start in proxy mode until this holds the approval reference (e.g. ticket / contract id).
+       */
+      proxyApprovalRef: z.string().min(1).nullable(),
+      /** Cloud Terms §6: bulk tile download (route prefetch) needs a written agreement. */
+      bulkDownloadAgreementRef: z.string().min(1).nullable(),
+      /**
+       * How MapTiler counts one request of each kind for request-billed integrations
+       * (docs "Map usage: Sessions vs requests", read 2026-11-06). Kinds the table doesn't list
+       * (sprites, other) are counted as 1 to stay conservative.
+       */
+      requestWeights: z.object({
+        vector_tile: z.number().nonnegative(),
+        raster_tile_512: z.number().nonnegative(),
+        raster_tile_256: z.number().nonnegative(),
+        style: z.number().nonnegative(),
+        tilejson: z.number().nonnegative(),
+        font: z.number().nonnegative(),
+        sprite: z.number().nonnegative(),
+        other: z.number().nonnegative(),
+      }),
+    }),
+    selfHosted: z.object({
+      /** Path of the style document on the self-hosted tile server. */
+      stylePath: z.string().min(1),
+      /** Our own OSM-derived tiles may be cached server-side (ODbL; see rights registry `osm`). */
+      serverCacheTtlSeconds: z.number().int().nonnegative(),
+    }),
+    deviceCache: z.object({
+      /** On-device ambient tile cache (single-user cache — allowed by MapTiler Cloud Terms §5). */
+      ambientCacheBytes: positiveInt,
+      /** Cache-Control max-age (private) we send for tiles, fonts and sprites. */
+      tileMaxAgeSeconds: z.number().int().nonnegative(),
+      styleMaxAgeSeconds: z.number().int().nonnegative(),
+    }),
+    prefetch: z.object({
+      corridorBufferM: z.number().positive(),
+      corridorChunkM: z.number().positive(),
+      destinationRadiusM: z.number().positive(),
+      minZoom: z.number().int().min(0).max(22),
+      maxZoom: z.number().int().min(0).max(22),
+      maxTilesPerPack: positiveInt,
+      maxPacks: positiveInt,
+    }),
+    /** Test day: our billable-request count must be within this fraction of the provider dashboard. */
+    reconcileTolerance: z.number().min(0).max(1),
+    /** Our map-session definition (mirrors MapTiler's: ends after 6 h or 10,000 requests). */
+    session: z.object({ maxDurationSeconds: positiveInt, maxRequests: positiveInt }),
+  }),
+  analytics: z.object({
+    /** Usage counters are buffered in memory and written to Postgres this often. */
+    flushIntervalSeconds: positiveInt,
   }),
   /** How requests are tied to an account (profiles are stored per account). */
   auth: z.object({

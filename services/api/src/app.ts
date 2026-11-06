@@ -22,7 +22,11 @@ function limitGroup(url: string): keyof AppContext['config']['rateLimits']['perD
       return 'cameras';
     case 'profiles':
     case 'safety':
+    case 'analytics':
+    case 'usage':
       return 'default';
+    case 'restrictions':
+      return 'facilities';
     default:
       return 'default';
   }

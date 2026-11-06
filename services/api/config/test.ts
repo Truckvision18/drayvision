@@ -4,7 +4,6 @@ import type { AppConfig, DeepPartial } from './types.js';
 export const test: DeepPartial<AppConfig> = {
   providers: {
     routing: 'mock',
-    tiles: 'mock',
     tolls: 'mock',
     traffic: 'mock',
     cameras: 'mock',
@@ -12,4 +11,5 @@ export const test: DeepPartial<AppConfig> = {
   },
   requiredEnv: [],
   cache: { backend: 'memory' },
+  tiles: { source: 'mock' },
 };

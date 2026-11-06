@@ -17,6 +17,15 @@ export interface MobileConfig {
     initialZoom: number;
     minZoom: number;
     maxZoom: number;
+    /** Overlay layers on when the app starts (the driver can toggle them). */
+    defaultLayers: { hazards: boolean; traffic: boolean; cameras: boolean; facilities: boolean; sponsored: boolean };
+    /** Wait this long after the map stops moving before fetching overlay data for the new view. */
+    overlayFetchDebounceMs: number;
+  };
+  /** Developer / pilot test-day tools. */
+  debug: {
+    /** Show the map usage panel (sessions / requests vs. the provider dashboard). */
+    mapUsagePanel: boolean;
   };
   /** Parked / moving detection gate (Phases 8, 9, 12). */
   safety: {
@@ -69,6 +78,10 @@ export interface MobileConfig {
     trafficSeconds: number;
     camerasSeconds: number;
     facilitiesSeconds: number;
+    restrictionsSeconds: number;
+    sponsoredSeconds: number;
+    /** Refetch /tiles/config this often while the app is open (also on every foreground). */
+    tileConfigSeconds: number;
   };
 }
 

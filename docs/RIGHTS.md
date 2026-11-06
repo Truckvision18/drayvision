@@ -3,7 +3,7 @@
 <!-- GENERATED FILE — do not edit by hand. Source: services/api/src/rights/registry.ts -->
 <!-- Regenerate with: npm run rights:doc -->
 
-Registry version: `2026-11-04.1`
+Registry version: `2026-11-06.1`
 
 What we may display, cache, proxy and store from each source, and how it must be attributed.
 Pilot and prod refuse to serve any source whose status is not `verified`.
@@ -11,7 +11,7 @@ Pilot and prod refuse to serve any source whose status is not `verified`.
 | Source | Status | Display | Cache (max TTL) | Proxy | Store derived | Attribution |
 |---|---|---|---|---|---|---|
 | `osm` OpenStreetMap data (routing graph, base restrictions) | **unverified** | yes | yes (config TTL) | yes | yes | © OpenStreetMap contributors |
-| `maptiler` MapTiler vector tiles + styles | **unverified** | yes | yes (config TTL) | yes | no | © MapTiler © OpenStreetMap contributors |
+| `maptiler` MapTiler vector tiles + styles | **unverified** | yes | no | no | no | © MapTiler © OpenStreetMap contributors |
 | `tollsmart` TollSmart toll estimates | **unverified** | yes | yes (config TTL) | yes | no | — |
 | `ny511` 511NY traffic events and camera feeds | **unverified** | yes | yes (config TTL) | yes | no | 511NY |
 | `google-imagery` Google street-level / aerial imagery (Know Before You Go previews) | **unverified** | yes | no | no | no | Google |
@@ -31,9 +31,9 @@ Pilot and prod refuse to serve any source whose status is not `verified`.
 
 - Provider: MapTiler
 - Data: base map tiles; styles; glyphs; sprites
-- Terms: https://www.maptiler.com/terms/
+- Terms: https://www.maptiler.com/terms/cloud/
 - Verified: not verified
-- Notes: Proxying + server-side caching through our API is ASSUMED — confirm the plan tier permits it before pilot. If not, tiles must be fetched client-side with a restricted key.
+- Notes: Read 2026-11-06 (General Terms + Cloud Terms): attribution must be on screen while the map is shown (§5) and OSM attribution linked to openstreetmap.org/copyright; device cache allowed for one end-user (§5); proxy needs written approval (§6); bulk tile download needs written agreement (§6) — route prefetch is off until bulkDownloadAgreementRef is set; no server-side cache and no redistribution as screenshot/static image (§7) — shared views carry text + attribution only. Needs counsel / a human to confirm before marking verified.
 
 ### TollSmart toll estimates (`tollsmart`)
 

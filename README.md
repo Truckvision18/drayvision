@@ -128,6 +128,60 @@ than routed to its street address. The response is `{ routes, rejected }`:
 Errors: **422** `PROFILE_INCOMPLETE` (with `missing_fields`), `NO_ROUTE` or
 `FACILITY_NO_TRUCK_ENTRANCE`, and **502** when the routing engine is unreachable.
 
+## Map and tiles
+
+**One map, everywhere.** `apps/mobile/src/map/MapView.tsx` (MapLibre React Native) is the only
+map in the app: plan, navigate and facility views all use it. A repo test fails if another map
+SDK is added, or if anything outside `src/map/` imports the SDK.
+
+**Layers, bottom to top:**
+- base roads
+- route
+- truck restrictions / hazards
+- traffic incidents
+- cameras (parked only)
+- facilities and truck entrances
+- sponsored pins (purple, labelled "Sponsored")
+
+Every layer is always mounted in that order, and toggles only change visibility. The API also
+appends `dv-anchor-*` layers to the style, and each overlay is pinned below the next anchor.
+Drivers switch layers from the **Layers** button. Camera images only show while parked, and
+camera data isn't even fetched while moving.
+
+**Attribution** ("© MapTiler", "© OpenStreetMap contributors", each linking to its copyright
+page) is drawn by the app on top of every map at all times. It is included in every shared
+route. With MapTiler, a share is text only: its terms forbid redistributing map images. A UI
+test fails if any map instance lacks attribution.
+
+**Tile source is a server config flag, not an app setting.** The app reads `GET /tiles/config`
+at launch and on every foreground. The response carries the style URL, attribution, billing
+unit, device-cache size, and prefetch and export policy.
+
+| Env var | Values | Effect |
+|---|---|---|
+| `TILE_SOURCE` | `maptiler` (default) · `self-hosted` · `mock` | which tiles every app uses — flip and restart the API, no app release |
+| `TILE_DELIVERY` | `proxy` (default) · `direct` | MapTiler through our API (needs MapTiler's written approval in pilot/prod: `MAPTILER_PROXY_APPROVAL_REF`), or straight from MapTiler with a restricted `MAPTILER_CLIENT_KEY` |
+| `SELF_HOSTED_TILES_URL` | URL | our own tile server (the exit ramp if hosted-tile costs grow) |
+
+Tile URLs are namespaced per source (`/tiles/<source>/…`), so device caches never mix sources,
+and an old source's URLs answer `410 TILE_SOURCE_CHANGED`.
+
+**Cost controls.** MapTiler bills this integration **per request**: map sessions exist only
+for MapTiler's JS SDK. A vector tile counts 1, while style, TileJSON and fonts are free. Details
+and verified figures are in `docs/COSTS.md` §3a.
+- **Counting:** the proxy counts every upstream request by kind, per device per day.
+  `GET /usage/maps/me` feeds the in-app debug panel (Trucks → *Map usage (debug)*), and
+  `GET /usage/maps` gives all devices (ops token outside dev).
+- **Sessions:** the app reports each map session (plan / navigate / facility) for
+  per-user-per-day analytics.
+- **Reconciliation:** `scripts/reconcile-map-usage.ts` checks a test day against the MapTiler
+  dashboard (±2 %).
+- **Caching:**
+  - Our API never caches MapTiler content (its terms forbid it); our own tiles may be cached.
+  - Devices keep a private, on-device ambient cache for the working area (size from config).
+  - Prefetch covers only the active route corridor plus the destination area, and is off for
+    MapTiler unless a bulk-download agreement is configured.
+
 ## Truck profiles
 
 Everything downstream (routing, tolls, safety, ports) keys off the truck profile.
@@ -214,6 +268,8 @@ including concurrent edits from two devices.
 ## Known scaffold limits
 
 - Valhalla runs only under the `routing` profile, because it needs built tiles first.
+- MapTiler proxy use needs MapTiler's written approval before pilot (see `docs/COSTS.md` §3a).
+  Until then, pilot/prod must use `TILE_DELIVERY=direct` or `TILE_SOURCE=self-hosted`.
 - Account sign-in isn't built: profiles use a dev-only `x-account-id` header, and pilot/prod
   answer `501` for account endpoints until it is.
 - `data/restrictions`, `data/facilities` and `data/test-routes` ship **empty on purpose**. No

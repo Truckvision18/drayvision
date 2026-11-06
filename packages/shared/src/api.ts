@@ -16,6 +16,7 @@ export const ApiErrorCodeSchema = z.enum([
   'RIGHTS_DENIED',
   'BUDGET_EXCEEDED',
   'NOT_IMPLEMENTED',
+  'TILE_SOURCE_CHANGED',
   'UPSTREAM_UNAVAILABLE',
   'INTERNAL',
 ]);

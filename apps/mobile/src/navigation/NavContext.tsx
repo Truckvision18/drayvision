@@ -3,6 +3,8 @@ import { profileCompleteness, type LngLat, type RouteResponse, type TruckProfile
 import { api as defaultApi, type RoutingApi } from '../api/client';
 import { config } from '../config';
 import { useLocation } from '../location/LocationContext';
+import { syncPrefetch } from '../map/prefetch';
+import { useTileConfig } from '../map/TileConfigContext';
 import { useProfiles, type ProfilesValue } from '../profiles/ProfileContext';
 import { activeRoute, initialNav, navReducer, type NavEvent, type NavState } from './navState';
 import { indexRoute, initialTracker, trackFix, type RouteIndex, type TrackerState } from './progress';
@@ -119,6 +121,15 @@ export function NavProvider({ children, api = defaultApi, announce = silent }: {
       else dispatch({ type: 'ARRIVED' });
     }
   }, [routeIndex, fix]);
+
+  // ---- corridor prefetch --------------------------------------------------------------------
+  // Only during an active trip, only the route corridor + destination area. Trip over (or a new
+  // route) → our old packs are deleted, so nothing outside the current corridor stays prefetched.
+  const { tileConfig } = useTileConfig();
+  const tripRoute = state.phase === 'navigating' || state.phase === 'rerouting' ? state.route : null;
+  useEffect(() => {
+    void syncPrefetch(tripRoute, tileConfig).catch(() => undefined); // prefetch is an optimisation, never a blocker
+  }, [tripRoute, tileConfig]);
 
   // ---- rerouting --------------------------------------------------------------------------
   const lastRerouteAt = useRef(0);

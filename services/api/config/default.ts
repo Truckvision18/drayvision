@@ -15,7 +15,6 @@ export const defaults: Omit<AppConfig, 'environment'> = {
   },
   providers: {
     routing: 'valhalla',
-    tiles: 'maptiler',
     tolls: 'mock',
     traffic: 'mock',
     cameras: 'mock',
@@ -64,7 +63,9 @@ export const defaults: Omit<AppConfig, 'environment'> = {
       traffic: null,
       cameras: null,
       imagery: null,
-      tiles: null,
+      // MapTiler Flex: $0.15 per 1,000 extra API requests (maptiler.com/cloud/pricing, read 2026-11-06).
+      // Per *billable* request. Ignores the 500k included requests → an upper-bound estimate.
+      tiles: 0.15 / 1000,
       feeds511: null,
     },
     alertAtFraction: 0.8,
@@ -96,6 +97,51 @@ export const defaults: Omit<AppConfig, 'environment'> = {
       useTracks: 0.0, // never route a container rig onto tracks
       topSpeedKph: 100, // ~62 mph — realistic loaded-rig ETA
     },
+  },
+  tiles: {
+    source: 'maptiler',
+    delivery: 'proxy',
+    maptiler: {
+      baseUrl: 'https://api.maptiler.com/',
+      styleId: 'streets-v2',
+      proxyApprovalRef: null,
+      bulkDownloadAgreementRef: null,
+      requestWeights: {
+        vector_tile: 1,
+        raster_tile_512: 4,
+        raster_tile_256: 1,
+        style: 0, // "TileJSONs, Style JSONs, Fonts … Free"
+        tilejson: 0,
+        font: 0,
+        sprite: 1, // not listed by MapTiler — counted conservatively
+        other: 1,
+      },
+    },
+    selfHosted: {
+      stylePath: 'styles/drayvision/style.json',
+      serverCacheTtlSeconds: 86_400,
+    },
+    deviceCache: {
+      ambientCacheBytes: 256 * 1024 * 1024, // working-area cache: a few metro areas at street zooms
+      tileMaxAgeSeconds: 7 * 86_400,
+      styleMaxAgeSeconds: 3_600,
+    },
+    prefetch: {
+      corridorBufferM: 500,
+      // A rectangular pack's corner can sit up to chunk/2 + √2·buffer off the route (diagonal worst
+      // case): 1 km chunks + 500 m buffer → ≤ ~1.2 km. Shorter chunks hug tighter but need more packs.
+      corridorChunkM: 1_000,
+      destinationRadiusM: 1_500,
+      minZoom: 10,
+      maxZoom: 16,
+      maxTilesPerPack: 2_000,
+      maxPacks: 80, // 1 km chunks → covers an ~80 km drayage leg (+ destination)
+    },
+    reconcileTolerance: 0.02, // ±2 %: clock skew at the day boundary + in-flight requests
+    session: { maxDurationSeconds: 6 * 3_600, maxRequests: 10_000 },
+  },
+  analytics: {
+    flushIntervalSeconds: 30,
   },
   auth: {
     mode: 'dev-header',

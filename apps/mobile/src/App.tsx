@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import type { ProfilesApi, RoutingApi } from './api/client';
+import { ApiProvider } from './api/ApiContext';
+import { api as defaultApi, type DrayVisionApi } from './api/client';
 import {
   LocationProvider,
   type LocationSource,
 } from './location/LocationContext';
 import { NavProvider, useNav } from './navigation/NavContext';
-import { ProfileProvider, type KeyValueStore } from './profiles/ProfileContext';
+import { MapLayersProvider } from './map/MapLayersContext';
+import { TileConfigProvider } from './map/TileConfigContext';
+import {
+  deviceStore,
+  ProfileProvider,
+  type KeyValueStore,
+} from './profiles/ProfileContext';
 import { FacilitiesScreen } from './screens/FacilitiesScreen';
 import { KnowBeforeYouGoScreen } from './screens/KnowBeforeYouGoScreen';
 import { NavigateScreen } from './screens/NavigateScreen';
@@ -27,31 +34,38 @@ type TabKey = (typeof TABS)[number]['key'];
 
 /**
  * App shell. One GPS feed (LocationProvider → also drives the parked/moving gate), the
- * account's truck profiles (ProfileProvider: server-backed, cached on device) and one
- * navigation state (NavProvider, which always routes for the active profile).
+ * account's truck profiles (ProfileProvider: server-backed, cached on device), the server's
+ * tile configuration + one set of map layer toggles for every map, and one navigation state
+ * (NavProvider, which always routes for the active profile).
  * `api` / `locationSource` / `store` are injectable for tests.
  */
 export default function App({
-  api,
+  api = defaultApi,
   locationSource,
   store,
 }: {
-  api?: RoutingApi & ProfilesApi;
+  api?: DrayVisionApi;
   locationSource?: LocationSource;
   store?: KeyValueStore;
 } = {}) {
+  const kv = store ?? deviceStore();
   return (
     <SafeAreaProvider>
-      <LocationProvider {...(locationSource ? { source: locationSource } : {})}>
-        <ProfileProvider
-          {...(api ? { api } : {})}
-          {...(store ? { store } : {})}
+      <ApiProvider api={api}>
+        <LocationProvider
+          {...(locationSource ? { source: locationSource } : {})}
         >
-          <NavProvider {...(api ? { api } : {})}>
-            <Shell />
-          </NavProvider>
-        </ProfileProvider>
-      </LocationProvider>
+          <ProfileProvider api={api} store={kv}>
+            <TileConfigProvider api={api} store={kv}>
+              <MapLayersProvider>
+                <NavProvider api={api}>
+                  <Shell />
+                </NavProvider>
+              </MapLayersProvider>
+            </TileConfigProvider>
+          </ProfileProvider>
+        </LocationProvider>
+      </ApiProvider>
     </SafeAreaProvider>
   );
 }

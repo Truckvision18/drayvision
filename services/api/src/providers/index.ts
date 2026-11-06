@@ -1,7 +1,6 @@
 import type { AppConfig } from '../../config/index.js';
 import { GoogleImagery, Ny511Cameras, Ny511Traffic, TollSmartTolls } from './live-stubs.js';
-import { MapTilerTiles } from './maptiler.js';
-import { mockCameras, mockImagery, mockRouting, mockTiles, mockTolls, mockTraffic } from './mock.js';
+import { mockCameras, mockImagery, mockRouting, mockTolls, mockTraffic } from './mock.js';
 import type { Providers } from './types.js';
 import { ValhallaRouting } from './valhalla.js';
 
@@ -26,7 +25,6 @@ export function createProviders(
             graphVersion: opts.routingGraphVersion ?? 'not-built',
           })
         : mockRouting,
-    tiles: p.tiles === 'maptiler' ? new MapTilerTiles(env.MAPTILER_KEY ?? '') : mockTiles,
     tolls: p.tolls === 'tollsmart' ? new TollSmartTolls(env) : mockTolls,
     traffic: p.traffic === 'ny511' ? new Ny511Traffic(env) : mockTraffic,
     cameras: p.cameras === 'ny511' ? new Ny511Cameras(env) : mockCameras,

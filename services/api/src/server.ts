@@ -6,6 +6,7 @@ async function main(): Promise<void> {
   const app = buildApp(ctx, { logger: true });
   const close = async (): Promise<void> => {
     await app.close();
+    await ctx.mapUsage.close(); // flush buffered usage before the pool closes
     await Promise.allSettled([ctx.cache.close(), ctx.repo.close()]);
     process.exit(0);
   };

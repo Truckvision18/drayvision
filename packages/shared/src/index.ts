@@ -10,3 +10,4 @@ export * from './traffic.js';
 export * from './toll.js';
 export * from './health.js';
 export * from './api.js';
+export * from './map.js';

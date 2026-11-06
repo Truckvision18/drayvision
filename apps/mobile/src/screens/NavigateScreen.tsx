@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ManeuverBanner } from '../components/ManeuverBanner';
-import { MapView } from '../components/MapView';
-import { RouteLine } from '../components/RouteLine';
+import { DestinationPin } from '../map/DestinationPin';
+import { MapView } from '../map/MapView';
 import { useNav } from '../navigation/NavContext';
 import { activeRoute } from '../navigation/navState';
 import { formatDistance, formatDuration } from '../navigation/format';
@@ -40,8 +40,9 @@ export function NavigateScreen() {
         <ManeuverBanner maneuver={next} distanceM={toNext} />
       ) : null}
 
-      <MapView followUser={state.phase !== 'arrived'}>
-        <RouteLine route={route} destination={state.destination} />
+      {/* Layer switches stay off the glanceable driving view; layers chosen on Plan still draw. */}
+      <MapView view="navigate" route={route} followUser={state.phase !== 'arrived'} showLayerToggles={false}>
+        <DestinationPin at={state.destination} />
       </MapView>
 
       <View style={styles.footer}>

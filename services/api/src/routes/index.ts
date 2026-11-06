@@ -6,6 +6,7 @@ import { NotFoundError } from '../errors.js';
 import { RIGHTS_REGISTRY_VERSION } from '../rights/registry.js';
 import { registerProfileRoutes } from './profiles.js';
 import { registerRoutingRoutes } from './routing.js';
+import { registerTileRoutes } from './tiles.js';
 import { BadRequestError, parseBBox, parseBody } from './schemas.js';
 
 /** Register every HTTP route. Each group is small on purpose — later phases grow them. */
@@ -116,28 +117,7 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
     return { listings: listings.map((l) => ({ ...l, label: 'Sponsored' as const })) };
   });
 
-  // ---- /tiles (MapTiler proxy — keys never reach the client) -----------------------------
-  app.get('/tiles/style.json', async (req) => {
-    const base = baseOf(req);
-    const r = await meteredCall(deps, { provider: 'tiles', rightsId: providers.tiles.rightsId, key: `style:${base}` }, () =>
-      providers.tiles.style(base),
-    );
-    return r.value;
-  });
-
-  app.get<{ Params: { '*': string } }>('/tiles/proxy/*', async (req, reply) => {
-    const path = req.params['*'];
-    if (path.includes('..')) throw new BadRequestError('invalid path');
-    const query = new URLSearchParams(req.url.split('?')[1] ?? '');
-    query.delete('key');
-    const base = baseOf(req);
-    const r = await meteredCall(deps, { provider: 'tiles', rightsId: providers.tiles.rightsId, key: `${base}|${path}?${query.toString()}` }, async () => {
-      const res = await providers.tiles.resource(path, query, base);
-      return { contentType: res.contentType, b64: res.body.toString('base64') };
-    });
-    return reply.type(r.value.contentType).send(Buffer.from(r.value.b64, 'base64'));
-  });
-
+  registerTileRoutes(app, ctx);
   registerProfileRoutes(app, ctx);
   registerRoutingRoutes(app, ctx);
 }

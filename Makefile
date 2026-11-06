@@ -40,8 +40,8 @@ test-node:
 test-mobile:
 	npm run test:mobile
 
-test-pg: ## Profile-store behaviour suite against the compose Postgres (make up first)
-	PG_IT_URL=$${PG_IT_URL:-postgres://drayvision:drayvision@localhost:5432/drayvision} npx vitest run services/api/test/profile-repo.test.ts
+test-pg: ## Profile + map-usage store behaviour suites against the compose Postgres (make up first)
+	PG_IT_URL=$${PG_IT_URL:-postgres://drayvision:drayvision@localhost:5432/drayvision} npx vitest run services/api/test/profile-repo.test.ts services/api/test/map-usage.test.ts
 
 typecheck: ## Strict TypeScript across api, shared, mobile
 	npm run typecheck

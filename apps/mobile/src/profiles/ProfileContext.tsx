@@ -33,7 +33,8 @@ export interface KeyValueStore {
 
 const STORAGE_KEY = 'drayvision.device.v1';
 let defaultStore: KeyValueStore | null = null;
-const deviceStore = (): KeyValueStore => (defaultStore ??= createAsyncStorage('drayvision'));
+/** The app's on-device key-value store (shared by profiles and the map config). */
+export const deviceStore = (): KeyValueStore => (defaultStore ??= createAsyncStorage('drayvision'));
 
 type Action =
   | { type: 'hydrate'; state: DeviceState }

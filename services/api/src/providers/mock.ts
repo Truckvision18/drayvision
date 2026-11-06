@@ -1,12 +1,12 @@
 import { haversineM, type Camera, type TrafficEvent } from '@drayvision/shared';
-import type { BBox, CameraProvider, ImageryProvider, Providers, RoutingProvider, TileProvider, TollProvider, TrafficProvider } from './types.js';
+import type { BBox, CameraProvider, ImageryProvider, Providers, RoutingProvider, TollProvider, TrafficProvider } from './types.js';
 
 /**
  * Deterministic in-process providers. Used by unit tests and by any environment whose config
  * selects `mock`. They never touch the network and never require a key.
  */
 
-// 1x1 transparent PNG
+// 1x1 transparent PNG (camera / imagery placeholders)
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
 const mockSource = { kind: 'OFFICIAL' as const, name: 'mock', dataset_version: 'mock', retrieved_at: '2026-01-01T00:00:00Z', rights_id: 'osm' };
@@ -35,23 +35,6 @@ export const mockRouting: RoutingProvider = {
   },
   async status() {
     return { up: true, graphVersion: 'mock' };
-  },
-};
-
-export const mockTiles: TileProvider = {
-  name: 'mock',
-  rightsId: 'osm',
-  async style() {
-    // An "empty map": background only. Lets the app launch with no MAPTILER_KEY.
-    return {
-      version: 8,
-      name: 'DrayVision empty (mock)',
-      sources: {},
-      layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#e9e5dc' } }],
-    };
-  },
-  async resource() {
-    return { contentType: 'image/png', body: PIXEL };
   },
 };
 
@@ -122,7 +105,6 @@ export const mockImagery: ImageryProvider = {
 
 export const mockProviders: Providers = {
   routing: mockRouting,
-  tiles: mockTiles,
   tolls: mockTolls,
   traffic: mockTraffic,
   cameras: mockCameras,

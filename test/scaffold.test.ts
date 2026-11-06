@@ -36,7 +36,7 @@ describe('repository hygiene', () => {
 
   it('.env.example contains no real-looking secret values', () => {
     for (const line of read('infra/.env.example').split('\n')) {
-      const m = /^(MAPTILER_KEY|TOLLSMART_API_KEY|GOOGLE_MAPS_API_KEY|NY511_API_KEY)=(.*)$/.exec(line);
+      const m = /^(MAPTILER_KEY|MAPTILER_CLIENT_KEY|OPS_TOKEN|TOLLSMART_API_KEY|GOOGLE_MAPS_API_KEY|NY511_API_KEY)=(.*)$/.exec(line);
       if (m) expect(m[2], m[1]).toBe('');
     }
   });
@@ -108,5 +108,28 @@ describe('mobile never calls a metered provider directly', () => {
   it.each(forbidden.map((r) => [r.source, r] as const))('no reference to %s', (_label, re) => {
     const hits = files.filter((f) => re.test(readFileSync(f, 'utf8')));
     expect(hits).toEqual([]);
+  });
+});
+
+describe('one mapping SDK for the whole app', () => {
+  const mobilePkg = JSON.parse(read('apps/mobile/package.json')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+  const deps = Object.keys({ ...mobilePkg.dependencies, ...mobilePkg.devDependencies });
+
+  it('MapLibre React Native is the only map SDK dependency', () => {
+    const mapSdks = deps.filter((d) => /map(s|box|libre|kit)|google-?maps|leaflet|here-|tomtom|mapview/i.test(d) && d !== '@maplibre/maplibre-react-native');
+    expect(mapSdks).toEqual([]);
+    expect(deps).toContain('@maplibre/maplibre-react-native');
+  });
+
+  it('only src/map/ (plus the GPS feed) talks to the map SDK — every map goes through MapView', () => {
+    const files = walk(join(root, 'apps/mobile/src')).filter((f) => /\.(ts|tsx)$/.test(f));
+    const importers = files
+      .filter((f) => /from '@maplibre\/maplibre-react-native'/.test(readFileSync(f, 'utf8')))
+      .map((f) => f.slice(join(root, 'apps/mobile/src').length + 1));
+    const allowed = (f: string) => f.startsWith('map/') || f === 'location/LocationContext.tsx';
+    expect(importers.filter((f) => !allowed(f))).toEqual([]);
+    // ...and the GPS feed only uses location services, never a map component.
+    const loc = read('apps/mobile/src/location/LocationContext.tsx');
+    expect(loc).not.toMatch(/\b(Map|Camera|Layer|GeoJSONSource|Marker)\b.*from '@maplibre/);
   });
 });

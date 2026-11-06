@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { profileCompleteness, type TruckProfile } from '@drayvision/shared';
+import { useApi } from '../api/ApiContext';
 import { Button } from '../components/ui';
+import { config } from '../config';
+import { MapUsagePanel } from '../map/MapUsagePanel';
 import { summary } from '../profiles/form';
 import { useProfiles } from '../profiles/ProfileContext';
 import { colors, space } from '../theme';
@@ -16,7 +19,18 @@ export function ProfilesScreen() {
   const [editing, setEditing] = useState<TruckProfile | 'new' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showUsage, setShowUsage] = useState(false);
+  const api = useApi();
 
+  if (showUsage)
+    return (
+      <View style={styles.fill}>
+        <MapUsagePanel api={api} />
+        <View style={[styles.row, styles.pad]}>
+          <Button label="Back" kind="secondary" onPress={() => setShowUsage(false)} />
+        </View>
+      </View>
+    );
   if (editing !== null) return <ProfileEditor profile={editing === 'new' ? null : editing} onDone={() => setEditing(null)} />;
 
   const act = (fn: () => Promise<unknown>) => () =>
@@ -73,6 +87,11 @@ export function ProfilesScreen() {
       <View style={styles.row}>
         <Button label="Add truck profile" onPress={() => setEditing('new')} testID="add-profile" />
       </View>
+      {config.debug.mapUsagePanel ? (
+        <View style={styles.row}>
+          <Button label="Map usage (debug)" kind="secondary" onPress={() => setShowUsage(true)} testID="open-map-usage" />
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -94,4 +113,5 @@ const styles = StyleSheet.create({
   summary: { color: colors.muted, fontSize: 15 },
   incomplete: { color: colors.warn, fontWeight: '600' },
   row: { flexDirection: 'row', gap: space.sm },
+  pad: { padding: space.lg },
 });

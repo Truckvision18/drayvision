@@ -48,6 +48,10 @@ export function loadConfig(
   // Narrow, explicit env-var overrides for deployment plumbing only (not tunables).
   if (processEnv.PORT) merged = deepMerge(merged, { server: { port: Number(processEnv.PORT) } });
   if (processEnv.PUBLIC_BASE_URL) merged = deepMerge(merged, { server: { publicBaseUrl: processEnv.PUBLIC_BASE_URL } });
+  // Tile source / delivery flags: flip per deployment without a code change or app release.
+  if (processEnv.TILE_SOURCE) merged = deepMerge(merged, { tiles: { source: processEnv.TILE_SOURCE } });
+  if (processEnv.TILE_DELIVERY) merged = deepMerge(merged, { tiles: { delivery: processEnv.TILE_DELIVERY } });
+  if (processEnv.MAPTILER_PROXY_APPROVAL_REF) merged = deepMerge(merged, { tiles: { maptiler: { proxyApprovalRef: processEnv.MAPTILER_PROXY_APPROVAL_REF } } });
   const parsed = configSchema.safeParse(merged);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
@@ -58,5 +62,9 @@ export function loadConfig(
 
 /** Returns the names of required env vars that are missing or blank. */
 export function missingRequiredEnv(config: AppConfig, processEnv: NodeJS.ProcessEnv = process.env): string[] {
-  return config.requiredEnv.filter((k) => !processEnv[k] || processEnv[k]?.trim() === '');
+  const required = new Set(config.requiredEnv);
+  // Keys the configured tile source / delivery mode needs.
+  if (config.tiles.source === 'maptiler') required.add(config.tiles.delivery === 'proxy' ? 'MAPTILER_KEY' : 'MAPTILER_CLIENT_KEY');
+  if (config.tiles.source === 'self-hosted') required.add('SELF_HOSTED_TILES_URL');
+  return [...required].filter((k) => !processEnv[k] || processEnv[k]?.trim() === '');
 }

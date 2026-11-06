@@ -1,64 +1,17 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import type { GeolocationPosition } from '@maplibre/maplibre-react-native';
 import App from '../src/App';
-import type { LocationSource } from '../src/location/LocationContext';
 import { fakeApi, memoryStore } from './fakeApi';
 import { north, profile } from './fixtures';
-
-/** A controllable GPS: tests push positions through it. Timestamps track real time so nothing goes stale. */
-function fakeGps(granted = true) {
-  let listener: ((p: GeolocationPosition) => void) | null = null;
-  const source: LocationSource = {
-    requestPermissions: async () => granted,
-    addListener: (fn) => {
-      listener = fn;
-    },
-    removeListener: () => {
-      listener = null;
-    },
-  };
-  let t = Date.now();
-  const push = (lng: number, lat: number, speed = 10) =>
-    act(() => {
-      t += 1000;
-      listener?.({ coords: { longitude: lng, latitude: lat, accuracy: 5, altitude: null, altitudeAccuracy: null, heading: null, speed }, timestamp: t });
-    });
-  /** Sit still long enough for the motion gate to report PARKED. */
-  const park = async (lng = 0, lat = 0) => {
-    for (let i = 0; i < 12; i++) await push(lng, lat, 0);
-  };
-  return { source, push, park };
-}
-
-const longPress = (lng: number, lat: number) => fireEvent(screen.getByTestId('map-view'), 'longPress', { nativeEvent: { lngLat: [lng, lat], point: [0, 0] } });
-
-async function boot(opts: { profiles?: ReturnType<typeof profile>[]; granted?: boolean; store?: ReturnType<typeof memoryStore> } = {}) {
-  const gps = fakeGps(opts.granted ?? true);
-  const server = fakeApi(opts.profiles ?? [profile()]);
-  const store = opts.store ?? memoryStore();
-  render(<App locationSource={gps.source} api={server.api} store={store} />);
-  await waitFor(() => screen.getByTestId('plan-screen'));
-  await waitFor(() => expect(server.api.listProfiles).toHaveBeenCalled());
-  return { gps, server, store };
-}
-
-async function planTo(gps: ReturnType<typeof fakeGps>, lng = 0.01, lat = 0.01) {
-  await gps.push(0, 0);
-  longPress(lng, lat);
-  const button = await screen.findByTestId('find-route');
-  // Async act: the API reply and the device-cache write both settle inside React's act scope.
-  await act(async () => {
-    fireEvent.press(button);
-  });
-}
+import { boot, fakeGps, longPress, planTo } from './harness';
 
 describe('App', () => {
   it('launches to an empty map on the Plan screen, styled via our API tile proxy', async () => {
     await boot();
     const map = screen.getByTestId('map-view');
-    expect(map.props.mapStyle).toMatch(/\/tiles\/style\.json$/);
-    expect(map.props.mapStyle).not.toMatch(/maptiler|key=/i);
+    // Style from the server's tile config (source-namespaced proxy URL), never the provider directly.
+    await waitFor(() => expect(map.props.mapStyle).toBe('http://api.test/tiles/maptiler/style.json'));
+    expect(map.props.mapStyle).not.toMatch(/api\.maptiler\.com|key=/i);
     expect(await screen.findByText('Long-press the map to set a destination')).toBeTruthy();
     expect(screen.getByText('Routing as: Volvo + 40ft chassis')).toBeTruthy();
   });
@@ -209,9 +162,7 @@ describe('truck profile rules in the app', () => {
     await planTo(first.gps);
     await waitFor(() => screen.getByTestId('route-card-route-1'));
     // Wait for persistence, then "restart" the app with the server now at v2.
-    await waitFor(() => expect(store.data.size).toBe(1));
-    const saved = JSON.parse([...store.data.values()][0]!) as { routes: unknown[] };
-    expect(saved.routes).toHaveLength(1);
+    await waitFor(() => expect((JSON.parse(store.data.get('drayvision.device.v1') ?? '{"routes":[]}') as { routes: unknown[] }).routes).toHaveLength(1));
     screen.unmount();
 
     const server2 = fakeApi([profile({ version: 2, height_m: 4.27 })]);
@@ -225,7 +176,7 @@ describe('truck profile rules in the app', () => {
   it('offline: profiles cached on the device still drive routing decisions', async () => {
     const store = memoryStore();
     await boot({ store, profiles: [profile({ weight_kg: null })] });
-    await waitFor(() => expect(store.data.size).toBe(1));
+    await waitFor(() => expect(store.data.get('drayvision.device.v1')).toContain('"weight_kg":null'));
     screen.unmount();
 
     const server = fakeApi([]);

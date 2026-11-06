@@ -9,6 +9,8 @@ import type { AppContext } from '../src/context.js';
 import { MemoryRepository } from '../src/db/repo.js';
 import { MemoryProfileRepository } from '../src/profiles/repo.js';
 import { mockProviders, type Providers } from '../src/providers/index.js';
+import { mockTileUpstream, type TileUpstream } from '../src/tiles/upstream.js';
+import { MemoryMapUsage } from '../src/tiles/usage.js';
 
 export const ACCOUNT = 'acct-test-1';
 export const OTHER_ACCOUNT = 'acct-test-2';
@@ -88,7 +90,7 @@ export const facility: Facility = {
 export const noEntranceFacility: Facility = { ...facility, id: 'fac-2', name: 'Unmapped Warehouse', kind: 'WAREHOUSE', truck_entrances: [], verification_state: 'UNVERIFIED' };
 
 export function testContext(
-  opts: { config?: DeepPartial<AppConfig>; providers?: Partial<Providers>; restrictions?: Hazard[]; facilities?: Facility[] } = {},
+  opts: { config?: DeepPartial<AppConfig>; providers?: Partial<Providers>; restrictions?: Hazard[]; facilities?: Facility[]; tiles?: TileUpstream | null; env?: NodeJS.ProcessEnv } = {},
 ): AppContext {
   const config = loadConfig('test', opts.config ?? {}, {});
   const facilities = opts.facilities ?? [facility, noEntranceFacility];
@@ -107,6 +109,9 @@ export function testContext(
       facilitiesVersion: 'test-facilities-1',
       routingGraphVersion: 'not-built',
     },
+    tiles: opts.tiles === undefined ? mockTileUpstream : opts.tiles,
+    mapUsage: new MemoryMapUsage(),
+    env: opts.env ?? {},
     build: { version: '0.1.0', gitSha: 'test' },
     external: { db: false, cache: false },
     // Strictly increasing clock so updated_at ordering is deterministic.

@@ -31,7 +31,8 @@ describe('Meter', () => {
   it('counts unpriced calls without inventing spend', () => {
     const m = new Meter(loadConfig('test', {}, {}).budgets);
     m.recordCall('tolls');
-    expect(m.snapshot()).toMatchObject({ calls: { tolls: 1 }, totalSpendUsd: null });
+    // tolls are unpriced → no spend invented for them (the total only sums priced providers)
+    expect(m.snapshot()).toMatchObject({ calls: { tolls: 1 }, spendUsd: { tolls: null }, totalSpendUsd: 0 });
     expect(m.budgetState('tolls')).toBe('ok');
   });
 

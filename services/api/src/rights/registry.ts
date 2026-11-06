@@ -31,7 +31,7 @@ export interface RightsEntry {
   notes: string;
 }
 
-export const RIGHTS_REGISTRY_VERSION = '2026-11-04.1';
+export const RIGHTS_REGISTRY_VERSION = '2026-11-06.1';
 
 export const rightsRegistry: readonly RightsEntry[] = [
   {
@@ -57,14 +57,18 @@ export const rightsRegistry: readonly RightsEntry[] = [
     dataTypes: ['base map tiles', 'styles', 'glyphs', 'sprites'],
     status: 'unverified',
     mayDisplay: true,
-    mayCache: true,
-    maxCacheTtlSeconds: null,
-    mayProxy: true,
+    // Cloud Terms §7 "Server-side Proxy & Caching": no storing / redistributing map content from a
+    // server-side cache. Device caching for a single end-user IS allowed (§5).
+    mayCache: false,
+    maxCacheTtlSeconds: 0,
+    // Cloud Terms §6: proxy use only with MapTiler's written approval (+ fees). Pilot/prod refuse to
+    // boot in proxy mode until tiles.maptiler.proxyApprovalRef is set.
+    mayProxy: false,
     mayStoreDerived: false,
     attribution: '© MapTiler © OpenStreetMap contributors',
-    termsUrl: 'https://www.maptiler.com/terms/',
+    termsUrl: 'https://www.maptiler.com/terms/cloud/',
     notes:
-      'Proxying + server-side caching through our API is ASSUMED — confirm the plan tier permits it before pilot. If not, tiles must be fetched client-side with a restricted key.',
+      'Read 2026-11-06 (General Terms + Cloud Terms): attribution must be on screen while the map is shown (§5) and OSM attribution linked to openstreetmap.org/copyright; device cache allowed for one end-user (§5); proxy needs written approval (§6); bulk tile download needs written agreement (§6) — route prefetch is off until bulkDownloadAgreementRef is set; no server-side cache and no redistribution as screenshot/static image (§7) — shared views carry text + attribution only. Needs counsel / a human to confirm before marking verified.',
   },
   {
     id: 'tollsmart',

@@ -25,15 +25,6 @@ export interface BinaryResource {
   body: Buffer;
 }
 
-export interface TileProvider {
-  readonly name: string;
-  readonly rightsId: string;
-  /** Style JSON with every upstream URL rewritten to point at our proxy (no keys leak to clients). */
-  style(publicBaseUrl: string): Promise<unknown>;
-  /** Fetch an upstream resource by proxied path. JSON resources are rewritten too. */
-  resource(path: string, query: URLSearchParams, publicBaseUrl: string): Promise<BinaryResource>;
-}
-
 export interface TollProvider {
   readonly name: string;
   readonly rightsId: string;
@@ -64,7 +55,6 @@ export interface ImageryProvider {
 
 export interface Providers {
   routing: RoutingProvider;
-  tiles: TileProvider;
   tolls: TollProvider;
   traffic: TrafficProvider;
   cameras: CameraProvider;

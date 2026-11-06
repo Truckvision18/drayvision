@@ -9,13 +9,26 @@ jest.mock('@maplibre/maplibre-react-native', () => {
     C.displayName = name;
     return C;
   };
+  // The map forwards a ref exposing the snapshot API used by "share".
+  const Map = React.forwardRef(({ children, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({ createStaticMapImage: jest.fn(async () => 'file:///snapshot.png') }));
+    return React.createElement(View, { testID: props.testID ?? 'MapLibreMap', ...props }, children);
+  });
+  Map.displayName = 'MapLibreMap';
   return {
-    Map: host('MapLibreMap'),
+    Map,
     Camera: host('MapLibreCamera'),
     Marker: host('MapLibreMarker'),
     GeoJSONSource: host('MapLibreGeoJSONSource'),
     Layer: host('MapLibreLayer'),
     UserLocation: host('MapLibreUserLocation'),
+    OfflineManager: {
+      setMaximumAmbientCacheSize: jest.fn(async () => undefined),
+      getPacks: jest.fn(async () => []),
+      createPack: jest.fn(async () => ({})),
+      deletePack: jest.fn(async () => undefined),
+    },
+    TransformRequestManager: { addHeader: jest.fn(() => 'id'), removeHeader: jest.fn() },
     LocationManager: {
       requestPermissions: async () => false,
       addListener: () => undefined,

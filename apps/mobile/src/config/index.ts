@@ -16,7 +16,10 @@ const defaults: MobileConfig = {
     initialZoom: 10,
     minZoom: 3,
     maxZoom: 19,
+    defaultLayers: { hazards: true, traffic: true, cameras: false, facilities: true, sponsored: true },
+    overlayFetchDebounceMs: 600,
   },
+  debug: { mapUsagePanel: true },
   safety: {
     movingSpeedMps: 2.2, // ~5 mph
     parkedSpeedMps: 0.5,
@@ -45,6 +48,9 @@ const defaults: MobileConfig = {
     trafficSeconds: 120,
     camerasSeconds: 60,
     facilitiesSeconds: 3_600,
+    restrictionsSeconds: 3_600,
+    sponsoredSeconds: 3_600,
+    tileConfigSeconds: 900,
   },
 };
 
@@ -56,6 +62,7 @@ const overrides: Record<MobileEnvironment, DeepPartial<MobileConfig>> = {
   },
   prod: {
     account: { devAccountId: null },
+    debug: { mapUsagePanel: false },
     api: { baseUrl: { ios: 'https://api.drayvision.invalid', android: 'https://api.drayvision.invalid' } },
   },
 };

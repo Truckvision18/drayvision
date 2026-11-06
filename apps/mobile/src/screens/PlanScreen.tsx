@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MapView } from '../components/MapView';
 import { RouteCard } from '../components/RouteCard';
-import { RouteLine } from '../components/RouteLine';
+import { DestinationPin } from '../map/DestinationPin';
+import { MapView, type MapRef } from '../map/MapView';
+import { shareRoute } from '../map/share';
+import { useTileConfig } from '../map/TileConfigContext';
 import { Button } from '../components/ui';
 import { useLocation } from '../location/LocationContext';
 import { useNav } from '../navigation/NavContext';
@@ -19,6 +21,8 @@ export function PlanScreen({ onOpenProfiles }: { onOpenProfiles: () => void }) {
   const { permission } = useLocation();
   const { active, completeness, status } = useProfiles();
   const routable = completeness?.complete === true;
+  const { tileConfig } = useTileConfig();
+  const mapRef = useRef<MapRef>(null);
 
   return (
     <View style={styles.fill} testID="plan-screen">
@@ -28,8 +32,8 @@ export function PlanScreen({ onOpenProfiles }: { onOpenProfiles: () => void }) {
         </Text>
         <Button label="Trucks" kind="secondary" onPress={onOpenProfiles} testID="open-profiles" />
       </View>
-      <MapView onLongPress={(at) => dispatch({ type: 'SET_DESTINATION', destination: at })}>
-        <RouteLine route={activeRoute(state)} destination={state.destination} />
+      <MapView ref={mapRef} view="plan" route={activeRoute(state)} onLongPress={(at) => dispatch({ type: 'SET_DESTINATION', destination: at })}>
+        {state.destination ? <DestinationPin at={state.destination} /> : null}
       </MapView>
       <View style={styles.panel}>{panel()}</View>
     </View>
@@ -69,6 +73,15 @@ export function PlanScreen({ onOpenProfiles }: { onOpenProfiles: () => void }) {
             </ScrollView>
             <View style={styles.row}>
               <Button label="Cancel" kind="secondary" onPress={() => dispatch({ type: 'CANCEL' })} />
+              <Button
+                label="Share"
+                kind="secondary"
+                onPress={() => {
+                  const r = activeRoute(state);
+                  if (r) void shareRoute(r, tileConfig, mapRef.current);
+                }}
+                testID="share-route"
+              />
               <Button label="Start" onPress={() => dispatch({ type: 'START' })} testID="start-nav" />
             </View>
           </>

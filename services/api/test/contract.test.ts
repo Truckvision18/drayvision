@@ -9,6 +9,9 @@ import {
   FacilitiesResponseSchema,
   FacilitySchema,
   HealthResponseSchema,
+  MapUsageResponseSchema,
+  RestrictionsResponseSchema,
+  TileConfigSchema,
   PortsResponseSchema,
   ProfilesResponseSchema,
   RouteResponseSchema,
@@ -72,6 +75,10 @@ const cases: Array<[string, (a: Awaited<ReturnType<typeof setup>>) => Promise<un
   ['GET /facilities/:id', ({ app }) => app.inject({ url: `/facilities/${facility.id}` }).then((r) => r.json()), FacilitySchema],
   ['GET /ports', ({ app }) => app.inject({ url: '/ports' }).then((r) => r.json()), PortsResponseSchema],
   ['GET /sponsored', ({ app }) => app.inject({ url: '/sponsored' }).then((r) => r.json()), SponsoredResponseSchema],
+  ['GET /tiles/config (map)', ({ app }) => app.inject({ url: '/tiles/config' }).then((r) => r.json()), TileConfigSchema],
+  ['GET /restrictions (hazards layer)', ({ app }) => app.inject({ url: '/restrictions?bbox=-75,40,-73,41' }).then((r) => r.json()), RestrictionsResponseSchema],
+  ['GET /usage/maps/me (debug panel)', ({ app }) => app.inject({ url: '/usage/maps/me', headers: { 'x-device-id': 'd1' } }).then((r) => r.json()), MapUsageResponseSchema],
+  ['GET /usage/maps (reconciliation)', ({ app }) => app.inject({ url: '/usage/maps' }).then((r) => r.json()), MapUsageResponseSchema],
   // Error payloads are part of the contract too.
   ['PROFILE_INCOMPLETE error', async ({ app }) => {
     const draft = (await app.inject({ method: 'POST', url: '/profiles', headers: auth(), payload: { name: 'draft' } })).json();

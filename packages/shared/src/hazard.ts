@@ -66,3 +66,6 @@ export const HazardSchema = z
   });
 export type Hazard = z.output<typeof HazardSchema>;
 export type HazardInput = z.input<typeof HazardSchema>;
+
+/** GET /restrictions?bbox= — verified restriction records in view (for the hazards map layer). */
+export const RestrictionsResponseSchema = z.object({ restrictions: z.array(HazardSchema), dataset_version: z.string() });

@@ -16,7 +16,6 @@ export const pilot: DeepPartial<AppConfig> = {
     'DATABASE_URL',
     'REDIS_URL',
     'VALHALLA_URL',
-    'MAPTILER_KEY',
     'TOLLSMART_API_KEY',
     'TOLLSMART_BASE_URL',
     'GOOGLE_MAPS_API_KEY',

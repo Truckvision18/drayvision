@@ -41,9 +41,10 @@ export class Meter {
     }
   }
 
-  recordCall(provider: MeteredProvider): void {
+  /** Record metered usage; `units` lets weighted providers (tile requests) count by billable weight. */
+  recordCall(provider: MeteredProvider, units = 1): void {
     this.rollover();
-    this.calls[provider] = (this.calls[provider] ?? 0) + 1;
+    this.calls[provider] = (this.calls[provider] ?? 0) + units;
   }
 
   recordCacheHit(provider: MeteredProvider): void {
