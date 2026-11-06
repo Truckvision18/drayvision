@@ -8,6 +8,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { HealthResponseSchema } from '@drayvision/shared';
 import { loadConfig, missingRequiredEnv, resolveEnvironment } from '../services/api/config/index.js';
 
 const root = resolve(import.meta.dirname, '..');
@@ -49,22 +50,22 @@ async function main(): Promise<void> {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
-      const body = (await res.json()) as {
-        status: string;
-        environment: string;
-        dataVersions?: Record<string, string>;
-        dependencies?: Record<string, string>;
-      };
-      if (res.ok && body.dataVersions && body.dependencies?.db === 'up' && body.dependencies.cache === 'up') {
-        console.log(`✓ ${base}/health → ${body.status} (env ${body.environment})`);
-        console.log(`  dataVersions: ${JSON.stringify(body.dataVersions)}`);
-        console.log(`  dependencies: ${JSON.stringify(body.dependencies)}`);
-        if (body.dependencies.routing !== 'up') {
-          console.log('  note: routing is not up — expected until Phase 4 tiles are built (services/routing/README.md)');
+      const parsed = HealthResponseSchema.safeParse(await res.json());
+      if (!parsed.success) {
+        last = `HTTP ${res.status}: /health does not match the shared schema: ${parsed.error.issues[0]?.message}`;
+      } else {
+        const body = parsed.data;
+        if (res.ok && body.dependencies.db === 'up' && body.dependencies.cache === 'up') {
+          console.log(`✓ ${base}/health → ${body.status} (env ${body.environment})`);
+          console.log(`  data_versions: ${JSON.stringify(body.data_versions)}`);
+          console.log(`  dependencies: ${JSON.stringify(body.dependencies)}`);
+          if (body.dependencies.routing !== 'up') {
+            console.log('  note: routing is not up — expected until tiles are built (services/routing/README.md)');
+          }
+          return;
         }
-        return;
+        last = `HTTP ${res.status}: ${JSON.stringify(body)}`;
       }
-      last = `HTTP ${res.status}: ${JSON.stringify(body)}`;
     } catch (err) {
       last = err instanceof Error ? err.message : String(err);
     }

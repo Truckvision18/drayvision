@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
-import type { TruckProfile } from '@drayvision/shared';
+import { profileCompleteness, type LngLat, type RouteResponse, type TruckProfile } from '@drayvision/shared';
 import { api as defaultApi, type RoutingApi } from '../api/client';
 import { config } from '../config';
 import { useLocation } from '../location/LocationContext';
-import { initialNav, navReducer, type NavEvent, type NavState } from './navState';
+import { useProfiles, type ProfilesValue } from '../profiles/ProfileContext';
+import { activeRoute, initialNav, navReducer, type NavEvent, type NavState } from './navState';
 import { indexRoute, initialTracker, trackFix, type RouteIndex, type TrackerState } from './progress';
 
 /** Speaks or displays an announcement. Voice (TTS) plugs in here later; default is display-only. */
@@ -12,7 +13,6 @@ export type Announcer = (text: string) => void;
 interface NavValue {
   state: NavState;
   dispatch: React.Dispatch<NavEvent>;
-  profile: TruckProfile;
 }
 
 const NavCtx = createContext<NavValue | null>(null);
@@ -28,26 +28,45 @@ const silent: Announcer = () => undefined;
 const message = (err: unknown): string => (err instanceof Error ? err.message : 'Routing failed');
 
 /**
+ * Ask for truck routes for the ACTIVE profile. Never guesses a profile: no profile or an
+ * incomplete one is a failure with the "complete your truck profile" message (the server
+ * enforces the same rule). Uses the device route cache, which is keyed by profile version.
+ */
+async function requestRoutes(api: RoutingApi, profiles: ProfilesValue, profile: TruckProfile | null, origin: LngLat, destination: LngLat): Promise<RouteResponse> {
+  if (!profile) throw new Error('Add a truck profile before planning a route.');
+  const completeness = profileCompleteness(profile);
+  if (!completeness.complete) throw new Error(completeness.message!);
+  const cached = profiles.cachedRoute(origin, destination, profile);
+  if (cached) return cached;
+  const response = await api.route({
+    origin,
+    destination_coords: destination,
+    truck_profile_id: profile.id,
+    departure_time: new Date().toISOString(),
+  });
+  profiles.cacheRoute(origin, destination, profile, response);
+  return response;
+}
+
+/**
  * Owns navigation state and its side effects:
- *  - planning:   ask OUR API for truck routes from the current GPS fix
+ *  - planning:   ask OUR API for truck routes from the current GPS fix, for the active profile
  *  - navigating: feed every GPS fix through the progress tracker
  *  - rerouting:  re-plan from the current fix (rate-limited by config)
+ *  - profile changes: a route planned for another truck (or an older version of this one) is
+ *    void — previews are replanned, an active trip reroutes.
  */
-export function NavProvider({
-  children,
-  api = defaultApi,
-  profile = config.defaultTruckProfile,
-  announce = silent,
-}: {
-  children: React.ReactNode;
-  api?: RoutingApi;
-  profile?: TruckProfile;
-  announce?: Announcer;
-}) {
+export function NavProvider({ children, api = defaultApi, announce = silent }: { children: React.ReactNode; api?: RoutingApi; announce?: Announcer }) {
   const [state, dispatch] = useReducer(navReducer, initialNav);
   const { fix } = useLocation();
+  const profiles = useProfiles();
   const fixRef = useRef(fix);
   fixRef.current = fix;
+  // Effects below read these through refs so a re-render never re-fires a request.
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
+  const apiRef = useRef(api);
+  apiRef.current = api;
 
   // ---- planning ---------------------------------------------------------------------------
   useEffect(() => {
@@ -58,14 +77,22 @@ export function NavProvider({
       return;
     }
     let live = true;
-    api
-      .route(origin, state.destination, profile)
+    requestRoutes(apiRef.current, profilesRef.current, profilesRef.current.active, origin, state.destination)
       .then((r) => live && dispatch({ type: 'ROUTES_LOADED', routes: r.routes }))
       .catch((err: unknown) => live && dispatch({ type: 'FAIL', message: message(err) }));
     return () => {
       live = false;
     };
-  }, [state, api, profile]);
+  }, [state]);
+
+  // ---- profile changed under a shown / active route -----------------------------------------
+  const shown = activeRoute(state);
+  const active = profiles.active;
+  useEffect(() => {
+    if (!shown || (state.phase !== 'previewing' && state.phase !== 'navigating')) return;
+    const v = shown.data_versions;
+    if (!active || v.truck_profile_id !== active.id || v.truck_profile_version !== active.version) dispatch({ type: 'PROFILE_CHANGED' });
+  }, [shown, state.phase, active]);
 
   // ---- navigating: progress tracking ------------------------------------------------------
   const navRoute = state.phase === 'navigating' ? state.route : null;
@@ -103,8 +130,7 @@ export function NavProvider({
     const timer = setTimeout(() => {
       if (!origin) return dispatch({ type: 'FAIL', message: 'Lost GPS while rerouting' });
       lastRerouteAt.current = Date.now();
-      api
-        .route(origin, state.destination, profile)
+      requestRoutes(apiRef.current, profilesRef.current, profilesRef.current.active, origin, state.destination)
         .then((r) => live && dispatch({ type: 'REROUTED', routes: r.routes }))
         .catch((err: unknown) => live && dispatch({ type: 'FAIL', message: message(err) }));
     }, wait);
@@ -112,7 +138,7 @@ export function NavProvider({
       live = false;
       clearTimeout(timer);
     };
-  }, [state, api, profile]);
+  }, [state]);
 
-  return <NavCtx.Provider value={{ state, dispatch, profile }}>{children}</NavCtx.Provider>;
+  return <NavCtx.Provider value={{ state, dispatch }}>{children}</NavCtx.Provider>;
 }

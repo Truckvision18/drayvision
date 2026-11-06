@@ -29,3 +29,9 @@ global.fetch = jest.fn(() => Promise.reject(new Error('fetch is not mocked in th
 
 // SafeAreaProvider waits for native insets before rendering children; use the library's mock.
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+
+// Device storage: the library's in-memory mock (tests that care inject their own store).
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const mock = require('@react-native-async-storage/async-storage/jest');
+  return mock;
+});

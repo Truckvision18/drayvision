@@ -10,7 +10,7 @@ export function CameraCard({ camera }: { camera: Camera }) {
     <View style={styles.card} testID={`camera-card-${camera.id}`}>
       <Text style={styles.title}>{camera.name}</Text>
       <ParkedOnly feature="camera-stills" fallback={<Text style={styles.muted}>Camera images available when parked</Text>}>
-        {camera.imageUrl ? <Image source={{ uri: camera.imageUrl }} style={styles.image} accessibilityLabel={camera.name} /> : null}
+        {camera.image_url ? <Image source={{ uri: camera.image_url }} style={styles.image} accessibilityLabel={camera.name} /> : null}
       </ParkedOnly>
       <Text style={styles.attribution}>{camera.attribution}</Text>
     </View>

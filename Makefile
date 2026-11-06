@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose -f infra/docker-compose.yml --env-file .env
 
 .DEFAULT_GOAL := help
-.PHONY: help setup install env up up-routing down logs ps test test-node test-mobile typecheck check smoke rights-doc migrate routing-deps tiles routing-it
+.PHONY: help setup install env up up-routing down logs ps test test-node test-mobile test-pg typecheck check smoke rights-doc migrate routing-deps tiles routing-it
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -39,6 +39,9 @@ test-node:
 
 test-mobile:
 	npm run test:mobile
+
+test-pg: ## Profile-store behaviour suite against the compose Postgres (make up first)
+	PG_IT_URL=$${PG_IT_URL:-postgres://drayvision:drayvision@localhost:5432/drayvision} npx vitest run services/api/test/profile-repo.test.ts
 
 typecheck: ## Strict TypeScript across api, shared, mobile
 	npm run typecheck

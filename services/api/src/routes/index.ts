@@ -1,11 +1,12 @@
-import type { HealthResponse, Route } from '@drayvision/shared';
+import { LngLatSchema, type HealthResponse } from '@drayvision/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { z } from 'zod';
 import { meteredCall, stableKey } from '../cache/metered.js';
 import type { AppContext } from '../context.js';
+import { NotFoundError } from '../errors.js';
 import { RIGHTS_REGISTRY_VERSION } from '../rights/registry.js';
-import { validateRoute } from '../safety/validate.js';
-import { BadRequestError, lineCoordinates, lngLat, parseBBox, parseBody, truckProfile } from './schemas.js';
+import { registerProfileRoutes } from './profiles.js';
+import { registerRoutingRoutes } from './routing.js';
+import { BadRequestError, parseBBox, parseBody } from './schemas.js';
 
 /** Register every HTTP route. Each group is small on purpose — later phases grow them. */
 export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -32,13 +33,13 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
       status,
       service: 'drayvision-api',
       version: ctx.build.version,
-      gitSha: ctx.build.gitSha,
+      git_sha: ctx.build.gitSha,
       environment: config.environment,
-      dataVersions: {
-        routingGraph: routing.graphVersion ?? data.routingGraphVersion,
+      data_versions: {
+        routing_graph: routing.graphVersion ?? data.routingGraphVersion,
         restrictions: data.restrictionsVersion,
         facilities: data.facilitiesVersion,
-        rightsRegistry: RIGHTS_REGISTRY_VERSION,
+        rights_registry: RIGHTS_REGISTRY_VERSION,
       },
       dependencies,
       time: ctx.now().toISOString(),
@@ -47,42 +48,6 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
 
   // ---- /meter (ops) ----------------------------------------------------------------------
   app.get('/meter', async () => meter.snapshot());
-
-  // ---- /route ----------------------------------------------------------------------------
-  const routeBody = z.object({ origin: lngLat, destination: lngLat, profile: truckProfile, includeTolls: z.boolean().optional() });
-  app.post('/route', async (req) => {
-    const body = parseBody(routeBody, req.body);
-    const raws = await providers.routing.route(body);
-    const routes: Route[] = [];
-    for (const raw of raws) {
-      const { hazards, validation } = validateRoute(raw, body.profile, data.restrictions, data.restrictionsVersion, config.safety, ctx.now());
-      const route: Route = { ...raw, hazards, validation };
-      if (body.includeTolls) {
-        const t = await meteredCall(
-          deps,
-          { provider: 'tolls', rightsId: providers.tolls.rightsId, key: stableKey({ g: raw.geometry, p: body.profile }) },
-          () => providers.tolls.estimate(raw.geometry, body.profile),
-        );
-        route.tolls = { ...t.value, cached: t.cached };
-      }
-      routes.push(route);
-    }
-    const navigable = config.safety.blockOnFail ? routes.filter((r) => r.validation.status !== 'fail') : routes;
-    return { routes: navigable, rejected: routes.filter((r) => !navigable.includes(r)).map((r) => ({ id: r.id, validation: r.validation })) };
-  });
-
-  // ---- /tolls ----------------------------------------------------------------------------
-  const tollBody = z.object({ geometry: lineCoordinates, profile: truckProfile });
-  app.post('/tolls', async (req) => {
-    const body = parseBody(tollBody, req.body);
-    const geometry = body.geometry as Array<[number, number]>;
-    const r = await meteredCall(
-      deps,
-      { provider: 'tolls', rightsId: providers.tolls.rightsId, key: stableKey({ g: geometry, p: body.profile }) },
-      () => providers.tolls.estimate(geometry, body.profile),
-    );
-    return { ...r.value, cached: r.cached };
-  });
 
   // ---- /traffic --------------------------------------------------------------------------
   app.get<{ Querystring: { bbox?: string } }>('/traffic', async (req) => {
@@ -101,7 +66,7 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
       providers.cameras.list(bbox),
     );
     // Always point clients at OUR image endpoint, never the upstream URL.
-    const cameras = r.value.map((c) => ({ ...c, imageUrl: `${base}/cameras/${encodeURIComponent(c.id)}/image` }));
+    const cameras = r.value.map((c) => ({ ...c, image_url: `${base}/cameras/${encodeURIComponent(c.id)}/image` }));
     return { cameras, cached: r.cached };
   });
 
@@ -115,7 +80,7 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
 
   // ---- /imagery (Know Before You Go previews) --------------------------------------------
   app.get<{ Querystring: { lng?: string; lat?: string; heading?: string } }>('/imagery/preview', async (req, reply) => {
-    const loc = parseBody(lngLat, { lng: Number(req.query.lng), lat: Number(req.query.lat) });
+    const loc = parseBody(LngLatSchema, { lng: Number(req.query.lng), lat: Number(req.query.lat) });
     const heading = Number(req.query.heading ?? 0);
     if (!Number.isFinite(heading)) throw new BadRequestError('heading must be a number');
     const r = await meteredCall(
@@ -131,16 +96,17 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
 
   // ---- /facilities -----------------------------------------------------------------------
   app.get<{ Querystring: { bbox?: string } }>('/facilities', async (req) => ({ facilities: await repo.facilities(parseBBox(req.query.bbox)) }));
-  app.get<{ Params: { id: string } }>('/facilities/:id', async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/facilities/:id', async (req) => {
     const f = await repo.facility(req.params.id);
-    return f ?? reply.code(404).send({ error: 'not found' });
+    if (!f) throw new NotFoundError(`Facility ${req.params.id} not found`);
+    return f;
   });
 
   // ---- /ports ----------------------------------------------------------------------------
   app.get('/ports', async () => {
-    const ports = (await repo.facilities(null)).filter((f) => f.kind === 'port-terminal');
+    const ports = (await repo.facilities(null)).filter((f) => f.kind === 'PORT_TERMINAL');
     const waits = await repo.latestWaitTimes(ports.map((p) => p.id));
-    return { ports: ports.map((p) => ({ ...p, latestWait: waits.find((w) => w.facilityId === p.id) ?? null })) };
+    return { ports: ports.map((p) => ({ ...p, latest_wait: waits.find((w) => w.facility_id === p.id) ?? null })) };
   });
 
   // ---- /sponsored ------------------------------------------------------------------------
@@ -171,4 +137,7 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
     });
     return reply.type(r.value.contentType).send(Buffer.from(r.value.b64, 'base64'));
   });
+
+  registerProfileRoutes(app, ctx);
+  registerRoutingRoutes(app, ctx);
 }

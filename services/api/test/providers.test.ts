@@ -1,3 +1,4 @@
+import { EngineRouteSchema } from '@drayvision/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../config/index.js';
 import { createProviders } from '../src/providers/index.js';
@@ -76,7 +77,7 @@ describe('Valhalla adapter', () => {
       truck: {
         height: 4.11,
         width: 2.59,
-        length: 20.7,
+        length: 21,
         weight: 36,
         axle_count: 5,
         hazmat: false,
@@ -89,11 +90,10 @@ describe('Valhalla adapter', () => {
     });
   });
 
-  it('flags hazmat and axle load when present', () => {
+  it('flags hazmat when the profile carries it', () => {
     const prefs = loadConfig('test', {}, {}).routing.truckCosting;
-    const t = ValhallaRouting.costingOptions({ ...rig, hazmat: [3], axleLoadKg: 9000 }, prefs).truck as Record<string, unknown>;
+    const t = ValhallaRouting.costingOptions({ ...rig, hazmat: { carrying: true, classes: [3] } }, prefs).truck as Record<string, unknown>;
     expect(t.hazmat).toBe(true);
-    expect(t.axle_load).toBe(9);
   });
 
   it('maps maneuver codes onto our enum', () => {
@@ -116,10 +116,11 @@ describe('Valhalla adapter', () => {
     const routes = await new ValhallaRouting(valhallaOpts(fetchImpl)).route({ origin: { lng: 0, lat: 0 }, destination: { lng: 1, lat: 1 }, profile: rig });
     expect(routes).toHaveLength(2);
     const [r] = routes;
-    expect(r?.distanceM).toBe(1500);
-    expect(r?.graphVersion).toBe('2026-11-01');
-    expect(r?.legs[0]?.maneuvers[0]).toMatchObject({ type: 'depart', verbalInstruction: 'Drive north.', beginShapeIndex: 0, endShapeIndex: 1 });
-    expect(r?.legs[0]?.maneuvers[1]?.type).toBe('arrive');
+    expect(EngineRouteSchema.parse(r)).toEqual(r); // adapter output IS the shared engine shape
+    expect(r?.distance_m).toBe(1500);
+    expect(r?.graph_version).toBe('2026-11-01');
+    expect(r?.maneuvers[0]).toMatchObject({ type: 'depart', verbal_instruction: 'Drive north.', begin_shape_index: 0, end_shape_index: 1 });
+    expect(r?.maneuvers[1]?.type).toBe('arrive');
   });
 
   it('turns "no path" errors into a 422 NoRouteError', async () => {

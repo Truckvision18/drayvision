@@ -5,7 +5,10 @@ import { Meter } from './cache/meter.js';
 import { RedisCache } from './cache/redis.js';
 import type { AppContext } from './context.js';
 import { loadData } from './data.js';
+import pg from 'pg';
 import { PgRepository } from './db/pg.js';
+import { PgProfileRepository } from './profiles/pg.js';
+import { MemoryProfileRepository } from './profiles/repo.js';
 import { MemoryRepository } from './db/repo.js';
 import { fromRoot } from './paths.js';
 import { createProviders } from './providers/index.js';
@@ -36,7 +39,11 @@ export function createContext(config: AppConfig = loadConfig(), env: NodeJS.Proc
   const data = loadData(config);
   const useRedis = config.cache.backend === 'redis' && !!env.REDIS_URL;
   const cache: Cache = useRedis ? new RedisCache(env.REDIS_URL!, config.cache.keyPrefix) : new MemoryCache(config.cache.memoryMaxEntries);
-  const repo = env.DATABASE_URL ? new PgRepository(env.DATABASE_URL) : new MemoryRepository(data.facilities);
+  const pool = env.DATABASE_URL ? new pg.Pool({ connectionString: env.DATABASE_URL, max: 10 }) : null;
+  pool?.on('error', () => undefined);
+  const repo = pool ? new PgRepository(pool) : new MemoryRepository(data.facilities);
+  // Without a database, profiles live in memory and vanish on restart — fine for dev only.
+  const profiles = pool ? new PgProfileRepository(pool) : new MemoryProfileRepository();
 
   return {
     config,
@@ -44,6 +51,7 @@ export function createContext(config: AppConfig = loadConfig(), env: NodeJS.Proc
     cache,
     meter: new Meter(config.budgets),
     repo,
+    profiles,
     data,
     build: { version: readVersion(), gitSha: env.GIT_SHA ?? 'dev' },
     external: { db: !!env.DATABASE_URL, cache: useRedis },

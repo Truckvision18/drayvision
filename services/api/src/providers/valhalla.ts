@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import type { Maneuver, ManeuverType } from '@drayvision/shared';
+import type { CompleteTruckProfile, Maneuver, ManeuverType } from '@drayvision/shared';
 import type { AppConfig } from '../../config/index.js';
 import { decodePolyline } from './polyline.js';
-import { UpstreamError, type RawRoute, type RouteRequest, type RoutingProvider } from './types.js';
+import { HttpError } from '../errors.js';
+import { UpstreamError, type EngineRoute, type EngineRouteRequest, type RoutingProvider } from './types.js';
 
 interface ValhallaManeuver {
   type: number;
@@ -39,13 +39,12 @@ const NO_ROUTE_CODES = new Set([
 ]);
 
 /** The request was valid but no truck-legal route exists (or a point is off the network). */
-export class NoRouteError extends Error {
-  readonly statusCode = 422;
+export class NoRouteError extends HttpError {
   constructor(
     readonly valhallaCode: number | undefined,
     detail: string,
   ) {
-    super(`No truck-legal route found: ${detail}`);
+    super(422, 'NO_ROUTE', `No truck-legal route found: ${detail}`);
   }
 }
 
@@ -106,16 +105,15 @@ export class ValhallaRouting implements RoutingProvider {
   }
 
   /** Map our TruckProfile + configured preferences onto Valhalla truck costing (metres / tonnes). */
-  static costingOptions(p: RouteRequest['profile'], prefs: AppConfig['routing']['truckCosting']): Record<string, unknown> {
+  static costingOptions(p: CompleteTruckProfile, prefs: AppConfig['routing']['truckCosting']): Record<string, unknown> {
     return {
       truck: {
-        height: p.heightM,
-        width: p.widthM,
-        length: p.lengthM,
-        weight: p.grossWeightKg / 1000,
-        ...(p.axleLoadKg !== undefined ? { axle_load: p.axleLoadKg / 1000 } : {}),
-        axle_count: p.axleCount,
-        hazmat: p.hazmat.length > 0,
+        height: p.height_m,
+        width: p.width_m,
+        length: p.length_m,
+        weight: p.weight_kg / 1000,
+        axle_count: p.axle_count,
+        hazmat: p.hazmat.carrying,
         use_highways: prefs.useHighways,
         use_tolls: prefs.useTolls,
         use_living_streets: prefs.useLivingStreets,
@@ -125,7 +123,7 @@ export class ValhallaRouting implements RoutingProvider {
     };
   }
 
-  async route(req: RouteRequest): Promise<RawRoute[]> {
+  async route(req: EngineRouteRequest): Promise<EngineRoute[]> {
     const body = {
       locations: [
         { lat: req.origin.lat, lon: req.origin.lng },
@@ -163,40 +161,30 @@ export class ValhallaRouting implements RoutingProvider {
     return trips.map((trip) => this.toRoute(trip, req));
   }
 
-  private toRoute(trip: ValhallaTrip, req: RouteRequest): RawRoute {
+  private toRoute(trip: ValhallaTrip, req: EngineRouteRequest): EngineRoute {
     const geometry: Array<[number, number]> = [];
-    const legs = trip.legs.map((leg) => {
+    const maneuvers: Maneuver[] = [];
+    for (const leg of trip.legs) {
       const shape = decodePolyline(leg.shape, 6);
       // Shape indices are per leg; offset them into the concatenated route geometry.
       const offset = geometry.length;
       geometry.push(...shape);
-      const maneuvers: Maneuver[] = leg.maneuvers.map((m) => {
+      for (const m of leg.maneuvers) {
         const pt = shape[m.begin_shape_index] ?? shape[0] ?? [req.origin.lng, req.origin.lat];
-        return {
+        maneuvers.push({
           instruction: m.instruction,
-          verbalInstruction: m.verbal_pre_transition_instruction,
+          verbal_instruction: m.verbal_pre_transition_instruction ?? null,
           type: mapManeuverType(m.type),
-          distanceM: m.length * 1000,
-          durationS: m.time,
+          distance_m: m.length * 1000,
+          duration_s: m.time,
           location: { lng: pt[0], lat: pt[1] },
-          streetNames: m.street_names ?? [],
-          beginShapeIndex: offset + m.begin_shape_index,
-          endShapeIndex: offset + m.end_shape_index,
-        };
-      });
-      return { distanceM: leg.summary.length * 1000, durationS: leg.summary.time, maneuvers };
-    });
-    return {
-      id: randomUUID(),
-      profileId: req.profile.id,
-      origin: req.origin,
-      destination: req.destination,
-      geometry,
-      distanceM: trip.summary.length * 1000,
-      durationS: trip.summary.time,
-      legs,
-      graphVersion: this.opts.graphVersion,
-    };
+          street_names: m.street_names ?? [],
+          begin_shape_index: offset + m.begin_shape_index,
+          end_shape_index: offset + m.end_shape_index,
+        });
+      }
+    }
+    return { geometry, maneuvers, distance_m: trip.summary.length * 1000, duration_s: trip.summary.time, graph_version: this.opts.graphVersion };
   }
 
   async status(): Promise<{ up: boolean; graphVersion: string | null }> {

@@ -17,12 +17,12 @@ describe('navigation state', () => {
   });
 
   it('never offers a route that failed validation', () => {
-    const s = run(...toPreview(lRoute('bad', 'fail'), lRoute('ok', 'pass')));
-    expect(s.phase === 'previewing' && s.routes.map((r) => r.id)).toEqual(['ok']);
+    const s = run(...toPreview(lRoute('bad', 'FAIL'), lRoute('ok', 'PASS')));
+    expect(s.phase === 'previewing' && s.routes.map((r) => r.route_id)).toEqual(['ok']);
   });
 
   it('errors when every route failed validation, keeping the destination for retry', () => {
-    const s = run(...toPreview(lRoute('bad', 'fail')));
+    const s = run(...toPreview(lRoute('bad', 'FAIL')));
     expect(s).toMatchObject({ phase: 'error', destination: dest });
     expect(navReducer(s, { type: 'PLAN' }).phase).toBe('planning');
   });
@@ -34,7 +34,7 @@ describe('navigation state', () => {
   it('runs preview → navigate → progress → arrive', () => {
     const s = run(...toPreview(lRoute('a'), lRoute('b')), { type: 'SELECT', index: 1 }, { type: 'START' }, { type: 'PROGRESS', progress });
     expect(s).toMatchObject({ phase: 'navigating', progress });
-    expect(s.phase === 'navigating' && s.route.id).toBe('b');
+    expect(s.phase === 'navigating' && s.route.route_id).toBe('b');
     expect(navReducer(s, { type: 'ARRIVED' }).phase).toBe('arrived');
   });
 
@@ -46,9 +46,9 @@ describe('navigation state', () => {
   it('reroutes onto the first safe route and rejects an all-unsafe reroute', () => {
     const navigating = run(...toPreview(lRoute('a')), { type: 'START' }, { type: 'OFF_ROUTE' });
     expect(navigating.phase).toBe('rerouting');
-    const ok = navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'fail'), lRoute('y')] });
-    expect(ok.phase === 'navigating' && ok.route.id).toBe('y');
-    expect(navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'fail')] })).toMatchObject({
+    const ok = navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'FAIL'), lRoute('y')] });
+    expect(ok.phase === 'navigating' && ok.route.route_id).toBe('y');
+    expect(navReducer(navigating, { type: 'REROUTED', routes: [lRoute('x', 'FAIL')] })).toMatchObject({
       phase: 'error',
       message: 'Reroute failed safety validation',
     });
@@ -62,7 +62,7 @@ describe('navigation state', () => {
 
   it('activeRoute follows the selection and the trip', () => {
     const p = run(...toPreview(lRoute('a'), lRoute('b')), { type: 'SELECT', index: 1 });
-    expect(activeRoute(p)?.id).toBe('b');
+    expect(activeRoute(p)?.route_id).toBe('b');
     expect(activeRoute(initialNav)).toBeNull();
   });
 });

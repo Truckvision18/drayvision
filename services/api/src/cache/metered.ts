@@ -2,16 +2,18 @@ import type { AppConfig, MeteredProvider } from '../../config/index.js';
 import { decideUse } from '../rights/registry.js';
 import type { Cache } from './cache.js';
 import type { Meter } from './meter.js';
+import { HttpError } from '../errors.js';
 
-export class BudgetExceededError extends Error {
-  readonly statusCode = 503;
+export class BudgetExceededError extends HttpError {
   constructor(provider: string) {
-    super(`Monthly budget for ${provider} reached; serving cache only`);
+    super(503, 'BUDGET_EXCEEDED', `Monthly budget for ${provider} reached; serving cache only`);
   }
 }
 
-export class RightsDeniedError extends Error {
-  readonly statusCode = 451;
+export class RightsDeniedError extends HttpError {
+  constructor(reason: string) {
+    super(451, 'RIGHTS_DENIED', reason);
+  }
 }
 
 export interface MeteredDeps {

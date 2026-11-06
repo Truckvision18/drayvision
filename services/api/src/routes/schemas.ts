@@ -1,30 +1,8 @@
-import { z } from 'zod';
+import type { z } from 'zod';
+import { BadRequestError } from '../errors.js';
 import type { BBox } from '../providers/types.js';
 
-export const lngLat = z.object({
-  lng: z.number().min(-180).max(180),
-  lat: z.number().min(-90).max(90),
-});
-
-export const truckProfile = z.object({
-  id: z.string().min(1),
-  name: z.string(),
-  heightM: z.number().positive(),
-  widthM: z.number().positive(),
-  lengthM: z.number().positive(),
-  grossWeightKg: z.number().positive(),
-  axleCount: z.number().int().min(2),
-  axleLoadKg: z.number().positive().optional(),
-  chassis: z.enum(['20ft', '40ft', '45ft', '53ft', 'tri-axle', 'flatbed', 'other']),
-  hazmat: z.array(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9)])),
-  twic: z.boolean(),
-});
-
-export const lineCoordinates = z.array(z.tuple([z.number(), z.number()])).min(2);
-
-export class BadRequestError extends Error {
-  readonly statusCode = 400;
-}
+export { BadRequestError };
 
 /** Parse `bbox=minLng,minLat,maxLng,maxLat`. Returns null if absent. */
 export function parseBBox(raw: unknown, required = false): BBox | null {
@@ -41,8 +19,9 @@ export function parseBBox(raw: unknown, required = false): BBox | null {
   return [a, b, c, d];
 }
 
-export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
+/** Validate a request body/params against a shared schema; 400 BAD_REQUEST listing every problem. */
+export function parseBody<S extends z.ZodTypeAny>(schema: S, body: unknown): z.output<S> {
   const r = schema.safeParse(body);
-  if (!r.success) throw new BadRequestError(r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+  if (!r.success) throw new BadRequestError(r.error.issues.map((i) => `${i.path.join('.') || '(body)'}: ${i.message}`).join('; '));
   return r.data;
 }

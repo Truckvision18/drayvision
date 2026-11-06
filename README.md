@@ -92,27 +92,91 @@ The app opens to an empty map on the **Plan** screen. The map style comes from
 
 ### `/health`
 
-`/health` returns `status`, `version`, `gitSha`, `environment`, and
-`dataVersions.{routingGraph, restrictions, facilities, rightsRegistry}`. It also returns
+`/health` returns `status`, `version`, `git_sha`, `environment`, and
+`data_versions.{routing_graph, restrictions, facilities, rights_registry}`. It also returns
 `dependencies.{db, cache, routing}`.
 
-- `routingGraph` is the OSM extract date recorded by `build-tiles.sh`, or `not-built`.
+- `routing_graph` is the OSM extract date recorded by `build-tiles.sh`, or `not-built`.
 - Until Phase 4 builds a graph, `routing` reports `down` and the status is `degraded`. db and
   cache should be `up`.
 
 ### API routes
 
-`/health`, `/meter`, `POST /route`, `POST /tolls`, `/traffic?bbox=`, `/cameras?bbox=`,
-`/cameras/:id/image`, `/imagery/preview`, `/facilities[?bbox=]`, `/facilities/:id`, `/ports`,
-`/sponsored[?bbox=]`, `/tiles/style.json`, `/tiles/proxy/*`.
+Public: `/health`, `/meter`, `/traffic?bbox=`, `/cameras?bbox=`, `/cameras/:id/image`,
+`/imagery/preview`, `/facilities[?bbox=]`, `/facilities/:id`, `/ports`, `/sponsored[?bbox=]`,
+`/tiles/style.json`, `/tiles/proxy/*`.
+
+Per account (see [Truck profiles](#truck-profiles)): `/profiles…`, `POST /route`,
+`POST /tolls`, `GET /tolls/:id`, `POST /safety/validate`.
+
+Every request and response body is defined once in `packages/shared` as a zod schema, and the
+TypeScript types are derived from it. Every error is `{ error: CODE, message }` (`ApiErrorSchema`).
+`services/api/test/contract.test.ts` calls every endpoint and validates each payload against
+its shared schema.
 
 Live tolls, 511NY and Google imagery are shells for now: they check their keys at boot and
 return `501` until their phase lands. MapTiler (tiles) and Valhalla (routing) are wired.
 
-`POST /route` returns `{ routes, rejected }`. `routes` holds only routes that passed safety
-validation, each stamped with the routing graph version (the OSM extract date) and the
-restrictions version. It returns **422** when no truck-legal route exists and **502** when the
-routing engine is unreachable.
+`POST /route` takes a `RouteRequest`: `origin`, either `destination_facility_id` or
+`destination_coords`, `truck_profile_id` and `departure_time`. A facility destination is
+routed to its **primary truck entrance**. A facility with no entrance on file is refused rather
+than routed to its street address. The response is `{ routes, rejected }`:
+- `routes` holds only routes that passed safety validation.
+- Each route records `data_versions`: graph, restrictions, rights registry, and the exact
+  `truck_profile_id` and `truck_profile_version` it was computed for.
+
+Errors: **422** `PROFILE_INCOMPLETE` (with `missing_fields`), `NO_ROUTE` or
+`FACILITY_NO_TRUCK_ENTRANCE`, and **502** when the routing engine is unreachable.
+
+## Truck profiles
+
+Everything downstream (routing, tolls, safety, ports) keys off the truck profile.
+
+- **Several per account:** different tractors or loads, up to `profiles.maxPerAccount`.
+- **Stored server-side:** Postgres `truck_profiles`, plus an immutable `truck_profile_versions`
+  history. The app caches profiles on the device.
+- **Fields:** height, weight, length, width, axle count, and a hazmat flag with classes. Also the
+  toll transponders held (network only, never the tag number), an optional home terminal,
+  `is_default`, and created/updated timestamps. All measurements are SI; the app shows
+  feet/inches and pounds.
+- **Exactly one default** per account. The first profile becomes the default, and deleting the
+  default promotes another.
+
+**No route, toll or safety call runs without a complete profile.** A profile can be *saved*
+with blanks (`null`), but every profile-dependent endpoint answers
+`422 PROFILE_INCOMPLETE` — "Complete your truck profile: add height and weight…" — until
+height, weight, length, width, axles and the hazmat answer are all present. There is no
+fallback rig, inline dimensions are refused, and the mobile app no longer has a default
+profile. Plausibility bounds (`PROFILE_BOUNDS` in `packages/shared`) catch unit mistakes, such
+as inches typed into a metres field.
+
+**Versioning:**
+- Every real edit bumps `version`. A no-op save doesn't, and neither does changing the default flag.
+- `PATCH` must send `expected_version`. A stale edit from another device gets
+  `409 VERSION_CONFLICT`; it never silently overwrites.
+- Routes and toll estimates record the profile version, and every cache key includes it, on the
+  server (Redis) and on the device. So an edit can't serve a route computed for the old truck.
+  The app purges those cached routes on the spot and replans any route it's showing.
+- `GET /profiles/:id/versions/:v` returns the exact snapshot a route used, even after the profile is deleted.
+
+| Endpoint | |
+|---|---|
+| `GET /profiles` | the account's profiles, default first |
+| `POST /profiles` | create (may be incomplete) → 201 |
+| `GET /profiles/:id` | current version |
+| `PATCH /profiles/:id` | edit; body needs `expected_version` |
+| `POST /profiles/:id/default` | make default |
+| `DELETE /profiles/:id` | soft delete → 204 (history kept) |
+| `GET /profiles/:id/versions/:version` | historical snapshot |
+
+**Accounts:** real sign-in isn't built yet.
+- In `dev` and `test`, the account comes from an `x-account-id` header (`auth.mode: dev-header`).
+- In `pilot` and `prod`, `auth.mode: token` fails closed: account endpoints return `501` until
+  sign-in exists. They never trust that header.
+
+**Database:** existing local databases need migration 002 (`make migrate`). New ones get it
+automatically. `make test-pg` runs the profile-store behaviour suite against Postgres,
+including concurrent edits from two devices.
 
 ## Phase 4: routing and turn-by-turn
 
@@ -136,7 +200,7 @@ routing engine is unreachable.
   - Address search: it needs a geocoder, which is a metered provider we haven't chosen.
   - Spoken voice: announcements are produced and shown on screen, and a text-to-speech engine
     plugs into `NavProvider`'s `announce`.
-  - Editing the truck profile: the Settings screen shows the default rig.
+  - (Truck profile editing landed with the profiles work — see [Truck profiles](#truck-profiles).)
 
 ### Environments
 
@@ -150,6 +214,8 @@ routing engine is unreachable.
 ## Known scaffold limits
 
 - Valhalla runs only under the `routing` profile, because it needs built tiles first.
+- Account sign-in isn't built: profiles use a dev-only `x-account-id` header, and pilot/prod
+  answer `501` for account endpoints until it is.
 - `data/restrictions`, `data/facilities` and `data/test-routes` ship **empty on purpose**. No
   unverified safety data goes in.
 - Metering is in memory for now. Phase 13 persists it to the `metered_calls` table.

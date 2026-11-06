@@ -1,43 +1,56 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import type { RoutingApi } from './api/client';
+import type { ProfilesApi, RoutingApi } from './api/client';
 import {
   LocationProvider,
   type LocationSource,
 } from './location/LocationContext';
 import { NavProvider, useNav } from './navigation/NavContext';
+import { ProfileProvider, type KeyValueStore } from './profiles/ProfileContext';
 import { FacilitiesScreen } from './screens/FacilitiesScreen';
 import { KnowBeforeYouGoScreen } from './screens/KnowBeforeYouGoScreen';
 import { NavigateScreen } from './screens/NavigateScreen';
 import { PlanScreen } from './screens/PlanScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
+import { ProfilesScreen } from './screens/ProfilesScreen';
 import { colors, touch } from './theme';
 
 const TABS = [
-  { key: 'plan', label: 'Plan', Screen: PlanScreen },
-  { key: 'navigate', label: 'Navigate', Screen: NavigateScreen },
-  { key: 'kbyg', label: 'Know Before', Screen: KnowBeforeYouGoScreen },
-  { key: 'facilities', label: 'Facilities', Screen: FacilitiesScreen },
-  { key: 'settings', label: 'Settings', Screen: SettingsScreen },
+  { key: 'plan', label: 'Plan' },
+  { key: 'navigate', label: 'Navigate' },
+  { key: 'kbyg', label: 'Know Before' },
+  { key: 'facilities', label: 'Facilities' },
+  { key: 'settings', label: 'Trucks' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
 
 /**
- * App shell. One GPS feed (LocationProvider → also drives the parked/moving gate) and one
- * navigation state (NavProvider). `api` / `locationSource` are injectable for tests.
+ * App shell. One GPS feed (LocationProvider → also drives the parked/moving gate), the
+ * account's truck profiles (ProfileProvider: server-backed, cached on device) and one
+ * navigation state (NavProvider, which always routes for the active profile).
+ * `api` / `locationSource` / `store` are injectable for tests.
  */
 export default function App({
   api,
   locationSource,
-}: { api?: RoutingApi; locationSource?: LocationSource } = {}) {
+  store,
+}: {
+  api?: RoutingApi & ProfilesApi;
+  locationSource?: LocationSource;
+  store?: KeyValueStore;
+} = {}) {
   return (
     <SafeAreaProvider>
       <LocationProvider {...(locationSource ? { source: locationSource } : {})}>
-        <NavProvider {...(api ? { api } : {})}>
-          <Shell />
-        </NavProvider>
+        <ProfileProvider
+          {...(api ? { api } : {})}
+          {...(store ? { store } : {})}
+        >
+          <NavProvider {...(api ? { api } : {})}>
+            <Shell />
+          </NavProvider>
+        </ProfileProvider>
       </LocationProvider>
     </SafeAreaProvider>
   );
@@ -53,14 +66,25 @@ function Shell() {
   useEffect(() => {
     if (state.phase === 'navigating') setTab('navigate');
   }, [state.phase]);
-  const Active = TABS.find(t => t.key === tab)?.Screen ?? PlanScreen;
+  const screen = (() => {
+    switch (tab) {
+      case 'plan':
+        return <PlanScreen onOpenProfiles={() => setTab('settings')} />;
+      case 'navigate':
+        return <NavigateScreen />;
+      case 'kbyg':
+        return <KnowBeforeYouGoScreen />;
+      case 'facilities':
+        return <FacilitiesScreen />;
+      case 'settings':
+        return <ProfilesScreen />;
+    }
+  })();
   return (
     <>
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-        <View style={styles.body}>
-          <Active />
-        </View>
+        <View style={styles.body}>{screen}</View>
         <View style={styles.tabs} accessibilityRole="tablist">
           {TABS.map(t => (
             <Pressable

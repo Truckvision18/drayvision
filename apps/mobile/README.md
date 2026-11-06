@@ -26,3 +26,9 @@ Ground rules:
 - **Tunables live in `src/config`** (safety thresholds, nav distances, refresh intervals), and
   each environment can override them.
 - **Distracting UI is parked-only.** Wrap it in `<ParkedOnly feature=…>`; see `src/safety/motionGate.ts`.
+  The truck-profile editor is parked-only. Without a GPS fix showing the truck stopped, it stays locked.
+- **No default truck.** The app routes only for the driver's own complete profile. Profiles are
+  stored server-side and cached on the device (`src/profiles`); an edit purges cached routes for
+  the old version, and any route on screen is replanned.
+- Shared schemas use zod 4. `babel.config.js` adds `export-namespace-from` for it, and
+  `index.js` turns on `z.config({ jitless: true })` because Hermes has no `new Function`.

@@ -10,6 +10,6 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@maplibre/maplibre-react-native|@drayvision)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@maplibre/maplibre-react-native|@react-native-async-storage|@drayvision)/)',
   ],
 };

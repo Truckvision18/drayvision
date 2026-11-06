@@ -1,5 +1,3 @@
-import type { TruckProfile } from '@drayvision/shared';
-
 export type MobileEnvironment = 'dev' | 'pilot' | 'prod';
 
 /**
@@ -52,8 +50,21 @@ export interface MobileConfig {
     /** Minimum time between reroute requests. */
     rerouteMinIntervalSeconds: number;
   };
-  /** Rig used until the driver sets their own in Settings. SI units. */
-  defaultTruckProfile: TruckProfile;
+  /**
+   * Account identity. Real sign-in isn't built yet: dev builds send this id as `x-account-id`
+   * (the API only accepts that header in dev/test). There is deliberately NO default truck
+   * profile here — routing waits until the driver has a complete profile of their own.
+   */
+  account: { devAccountId: string | null };
+  /** On-device cache of server data. */
+  deviceCache: {
+    /** How long a cached route response may be reused for the same trip and profile version. */
+    routeTtlSeconds: number;
+    /** Max cached route responses kept on the device. */
+    maxRoutes: number;
+    /** Origins within this many decimal degrees (~11 m per 0.0001) share a cache entry. */
+    originRoundingDecimals: number;
+  };
   refresh: {
     trafficSeconds: number;
     camerasSeconds: number;

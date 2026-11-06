@@ -34,18 +34,13 @@ const defaults: MobileConfig = {
     snapBacktrackM: 30,
     rerouteMinIntervalSeconds: 10,
   },
-  defaultTruckProfile: {
-    id: 'default-40ft',
-    name: "40' container on chassis",
-    heightM: 4.11, // 13'6"
-    widthM: 2.59, // 8'6"
-    lengthM: 21.03, // 69'
-    grossWeightKg: 36_287, // 80,000 lb
-    axleCount: 5,
-    chassis: '40ft',
-    hazmat: [],
-    twic: true,
+  account: { devAccountId: 'dev-device-account' },
+  deviceCache: {
+    routeTtlSeconds: 300,
+    maxRoutes: 20,
+    originRoundingDecimals: 3, // ~110 m
   },
+
   refresh: {
     trafficSeconds: 120,
     camerasSeconds: 60,
@@ -56,9 +51,11 @@ const defaults: MobileConfig = {
 const overrides: Record<MobileEnvironment, DeepPartial<MobileConfig>> = {
   dev: {},
   pilot: {
+    account: { devAccountId: null }, // pilot needs real sign-in; never a shared dev id
     api: { baseUrl: { ios: 'https://pilot-api.drayvision.invalid', android: 'https://pilot-api.drayvision.invalid' } },
   },
   prod: {
+    account: { devAccountId: null },
     api: { baseUrl: { ios: 'https://api.drayvision.invalid', android: 'https://api.drayvision.invalid' } },
   },
 };

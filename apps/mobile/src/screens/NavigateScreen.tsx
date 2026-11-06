@@ -21,10 +21,10 @@ export function NavigateScreen() {
     );
   }
 
-  const maneuvers = route.legs.flatMap((l) => l.maneuvers);
+  const maneuvers = route.maneuvers;
   const progress = state.phase === 'navigating' ? state.progress : null;
   const next = progress ? maneuvers[progress.nextManeuverIndex] : maneuvers[1] ?? maneuvers[0];
-  const toNext = progress ? progress.distanceToNextManeuverM : maneuvers[0]?.distanceM ?? 0;
+  const toNext = progress ? progress.distanceToNextManeuverM : maneuvers[0]?.distance_m ?? 0;
 
   return (
     <View style={styles.fill} testID="screen-Navigate">
@@ -47,9 +47,11 @@ export function NavigateScreen() {
       <View style={styles.footer}>
         <View>
           <Text style={styles.big} testID="remaining">
-            {formatDuration(progress?.remainingS ?? route.durationS)} · {formatDistance(progress?.remainingM ?? route.distanceM)}
+            {formatDuration(progress?.remainingS ?? route.duration_s)} · {formatDistance(progress?.remainingM ?? route.distance_m)}
           </Text>
-          <Text style={styles.muted}>Graph {route.graphVersion} · restrictions {route.validation.restrictionsVersion}</Text>
+          <Text style={styles.muted} testID="route-versions">
+            Graph {route.data_versions.routing_graph} · restrictions {route.data_versions.restrictions} · truck v{route.data_versions.truck_profile_version}
+          </Text>
         </View>
         <Pressable accessibilityRole="button" onPress={() => dispatch({ type: 'CANCEL' })} style={styles.end} testID="end-trip">
           <Text style={styles.endText}>{state.phase === 'arrived' ? 'Done' : 'End'}</Text>

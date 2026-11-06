@@ -2,6 +2,7 @@ import type { Facility, SponsoredListing, WaitTimeObservation } from '@drayvisio
 import type { BBox } from '../providers/types.js';
 
 export interface Repository {
+  /** Facilities with at least one truck entrance inside the bbox (all facilities when null). */
   facilities(bbox: BBox | null): Promise<Facility[]>;
   facility(id: string): Promise<Facility | null>;
   sponsored(bbox: BBox | null, at: Date): Promise<SponsoredListing[]>;
@@ -22,7 +23,7 @@ export class MemoryRepository implements Repository {
   ) {}
 
   async facilities(bbox: BBox | null): Promise<Facility[]> {
-    return this.seedFacilities.filter((f) => inBBox(f.location.lng, f.location.lat, bbox));
+    return this.seedFacilities.filter((f) => bbox === null || f.truck_entrances.some((e) => inBBox(e.coords.lng, e.coords.lat, bbox)));
   }
 
   async facility(id: string): Promise<Facility | null> {
@@ -31,14 +32,14 @@ export class MemoryRepository implements Repository {
 
   async sponsored(bbox: BBox | null, at: Date): Promise<SponsoredListing[]> {
     const t = at.toISOString();
-    return this.seedSponsored.filter((s) => s.activeFrom <= t && s.activeTo > t && inBBox(s.location.lng, s.location.lat, bbox));
+    return this.seedSponsored.filter((s) => s.active_from <= t && s.active_to > t && inBBox(s.location.lng, s.location.lat, bbox));
   }
 
   async latestWaitTimes(ids: string[]): Promise<WaitTimeObservation[]> {
     return ids.flatMap((id) =>
       this.seedWaits
-        .filter((w) => w.facilityId === id)
-        .sort((a, b) => b.observedAt.localeCompare(a.observedAt))
+        .filter((w) => w.facility_id === id)
+        .sort((a, b) => b.observed_at.localeCompare(a.observed_at))
         .slice(0, 1),
     );
   }

@@ -23,6 +23,8 @@ export type NavEvent =
   | { type: 'PROGRESS'; progress: Progress }
   | { type: 'ANNOUNCE'; text: string }
   | { type: 'OFF_ROUTE' }
+  /** The active truck profile changed (edit or switch): routes for the old truck are void. */
+  | { type: 'PROFILE_CHANGED' }
   | { type: 'REROUTED'; routes: Route[] }
   | { type: 'ARRIVED' }
   | { type: 'FAIL'; message: string }
@@ -31,7 +33,7 @@ export type NavEvent =
 export const initialNav: NavState = { phase: 'idle', destination: null };
 
 /** Safety: never offer a route that failed validation, whatever the server sent. */
-const navigable = (routes: Route[]): Route[] => routes.filter((r) => r.validation.status !== 'fail');
+const navigable = (routes: Route[]): Route[] => routes.filter((r) => r.safety_result.status !== 'FAIL');
 
 const destinationOf = (s: NavState): LngLat | null => s.destination;
 
@@ -74,6 +76,10 @@ export function navReducer(s: NavState, e: NavEvent): NavState {
         ? { phase: 'navigating', destination: s.destination, route, progress: null, lastAnnouncement: null }
         : { phase: 'error', destination: s.destination, message: 'Reroute failed safety validation' };
     }
+    case 'PROFILE_CHANGED':
+      if (s.phase === 'previewing') return { phase: 'planning', destination: s.destination };
+      if (s.phase === 'navigating') return { phase: 'rerouting', destination: s.destination, route: s.route };
+      return s;
     case 'ARRIVED':
       return s.phase === 'navigating' ? { phase: 'arrived', destination: s.destination, route: s.route } : s;
   }

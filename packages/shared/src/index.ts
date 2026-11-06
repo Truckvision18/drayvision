@@ -6,5 +6,7 @@ export * from './hazard.js';
 export * from './route.js';
 export * from './facility.js';
 export * from './camera.js';
+export * from './traffic.js';
 export * from './toll.js';
 export * from './health.js';
+export * from './api.js';

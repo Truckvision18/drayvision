@@ -11,11 +11,11 @@ describe('GET /health', () => {
       status: 'ok',
       service: 'drayvision-api',
       environment: 'test',
-      dataVersions: {
-        routingGraph: 'mock',
+      data_versions: {
+        routing_graph: 'mock',
         restrictions: 'test-restrictions-1',
         facilities: 'test-facilities-1',
-        rightsRegistry: expect.any(String),
+        rights_registry: expect.any(String),
       },
       dependencies: { db: 'not-configured', cache: 'not-configured', routing: 'not-configured' },
     });
@@ -29,6 +29,6 @@ describe('GET /health', () => {
     });
     const body = (await app.inject({ method: 'GET', url: '/health' })).json();
     expect(body.status).toBe('degraded');
-    expect(body.dataVersions.routingGraph).toBe('not-built');
+    expect(body.data_versions.routing_graph).toBe('not-built');
   });
 });

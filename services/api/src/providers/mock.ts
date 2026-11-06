@@ -1,4 +1,4 @@
-import type { Camera, Hazard, LngLat } from '@drayvision/shared';
+import { haversineM, type Camera, type TrafficEvent } from '@drayvision/shared';
 import type { BBox, CameraProvider, ImageryProvider, Providers, RoutingProvider, TileProvider, TollProvider, TrafficProvider } from './types.js';
 
 /**
@@ -9,46 +9,27 @@ import type { BBox, CameraProvider, ImageryProvider, Providers, RoutingProvider,
 // 1x1 transparent PNG
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
-const mockProvenance = { source: 'mock', sourceVersion: 'mock', retrievedAt: '2026-01-01T00:00:00Z', rightsId: 'osm' };
-
-function haversineM(a: LngLat, b: LngLat): number {
-  const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
+const mockSource = { kind: 'OFFICIAL' as const, name: 'mock', dataset_version: 'mock', retrieved_at: '2026-01-01T00:00:00Z', rights_id: 'osm' };
 
 export const mockRouting: RoutingProvider = {
   name: 'mock',
-  async route({ origin, destination, profile }) {
-    const distanceM = haversineM(origin, destination);
+  async route({ origin, destination }) {
+    const distance_m = haversineM(origin, destination);
     // Straight line at a nominal 40 km/h purely so the shape is plausible in tests.
-    const durationS = distanceM / (40_000 / 3600);
+    const duration_s = distance_m / (40_000 / 3600);
     return [
       {
-        id: 'mock-route-1',
-        profileId: profile.id,
-        origin,
-        destination,
         geometry: [
           [origin.lng, origin.lat],
           [destination.lng, destination.lat],
         ],
-        distanceM,
-        durationS,
-        legs: [
-          {
-            distanceM,
-            durationS,
-            maneuvers: [
-              { instruction: 'Depart', type: 'depart', distanceM, durationS, location: origin, streetNames: [], beginShapeIndex: 0, endShapeIndex: 1 },
-              { instruction: 'Arrive', type: 'arrive', distanceM: 0, durationS: 0, location: destination, streetNames: [], beginShapeIndex: 1, endShapeIndex: 1 },
-            ],
-          },
+        maneuvers: [
+          { instruction: 'Depart', verbal_instruction: null, type: 'depart', distance_m, duration_s, location: origin, street_names: [], begin_shape_index: 0, end_shape_index: 1 },
+          { instruction: 'Arrive', verbal_instruction: null, type: 'arrive', distance_m: 0, duration_s: 0, location: destination, street_names: [], begin_shape_index: 1, end_shape_index: 1 },
         ],
-        graphVersion: 'mock',
+        distance_m,
+        duration_s,
+        graph_version: 'mock',
       },
     ];
   },
@@ -77,14 +58,12 @@ export const mockTiles: TileProvider = {
 export const mockTolls: TollProvider = {
   name: 'mock',
   rightsId: 'osm',
-  async estimate(geometry) {
+  async estimate(geometry, profile) {
     return {
-      currency: 'USD',
       total: 0,
       items: [],
-      isEstimate: true,
-      provider: `mock(${geometry.length} pts)`,
-      computedAt: '2026-01-01T00:00:00Z',
+      transponders_applied: [...new Set(profile.transponders.map((t) => t.network))],
+      provider: `mock(${geometry.length} pts, ${profile.axle_count} axles)`,
     };
   },
 };
@@ -92,16 +71,18 @@ export const mockTolls: TollProvider = {
 export const mockTraffic: TrafficProvider = {
   name: 'mock',
   rightsId: 'osm',
-  async events(bbox: BBox): Promise<Hazard[]> {
+  async events(bbox: BBox): Promise<TrafficEvent[]> {
     const [minLng, minLat, maxLng, maxLat] = bbox;
     return [
       {
         id: 'mock-incident-1',
-        kind: 'construction',
-        severity: 'caution',
+        kind: 'CONSTRUCTION',
+        severity: 'CAUTION',
         location: { lng: (minLng + maxLng) / 2, lat: (minLat + maxLat) / 2 },
         description: 'Mock lane closure',
-        provenance: mockProvenance,
+        starts_at: null,
+        ends_at: null,
+        source: mockSource,
       },
     ];
   },
@@ -117,8 +98,11 @@ export const mockCameras: CameraProvider = {
         id: 'mock-cam-1',
         name: 'Mock camera',
         location: { lng: minLng, lat: minLat },
+        heading_deg: null,
         provider: 'mock',
-        rightsId: 'osm',
+        image_url: null,
+        last_updated: null,
+        rights_id: 'osm',
         attribution: 'mock',
       },
     ];

@@ -1,5 +1,5 @@
-import type { Facility, SponsoredListing, TruckEntrance, WaitTimeObservation } from '@drayvision/shared';
-import pg from 'pg';
+import { FacilitySchema, SponsoredListingSchema, WaitTimeObservationSchema, type Facility, type SponsoredListing, type WaitTimeObservation } from '@drayvision/shared';
+import type pg from 'pg';
 import type { BBox } from '../providers/types.js';
 import type { Repository } from './repo.js';
 
@@ -9,38 +9,44 @@ function bboxClause(col: string, first: number): string {
   return `ST_Intersects(${col}, ST_MakeEnvelope(${p(0)}, ${p(1)}, ${p(2)}, ${p(3)}, 4326)::geography)`;
 }
 
-export class PgRepository implements Repository {
-  private readonly pool: pg.Pool;
+const iso = (d: Date | null): string | null => (d ? new Date(d).toISOString() : null);
 
-  constructor(connectionString: string) {
-    this.pool = new pg.Pool({ connectionString, max: 10 });
-    this.pool.on('error', () => undefined);
-  }
+/** Postgres + PostGIS repository. Every row is validated against the shared schemas on read. */
+export class PgRepository implements Repository {
+  constructor(private readonly pool: pg.Pool) {}
 
   async facilities(bbox: BBox | null): Promise<Facility[]> {
-    const where = bbox ? `WHERE ${bboxClause('f.geom', 1)}` : '';
+    const where = bbox ? `WHERE EXISTS (SELECT 1 FROM truck_entrances x WHERE x.facility_id = f.id AND ${bboxClause('x.geom', 1)})` : '';
     const { rows } = await this.pool.query(
-      `SELECT f.id, f.name, f.kind, ST_X(f.geom::geometry) AS lng, ST_Y(f.geom::geometry) AS lat, f.address,
-              f.external_ids, f.requires_twic, f.provenance,
-              COALESCE(json_agg(json_build_object('id', e.id, 'label', e.label, 'hours', e.hours, 'notes', e.notes,
-                 'provenance', e.provenance,
-                 'location', json_build_object('lng', ST_X(e.geom::geometry), 'lat', ST_Y(e.geom::geometry))))
-                 FILTER (WHERE e.id IS NOT NULL), '[]') AS entrances
+      `SELECT f.id, f.name, f.kind, f.street_address, f.verification_state, f.requires_twic,
+              f.receiving_office, f.staging_area, f.docks, f.notes,
+              COALESCE(json_agg(json_build_object(
+                 'id', e.id, 'street', e.street, 'is_primary', e.is_primary, 'verified_by', e.verified_by,
+                 'verified_at', e.verified_at, 'source', e.source, 'notes', e.notes,
+                 'coords', json_build_object('lng', ST_X(e.geom::geometry), 'lat', ST_Y(e.geom::geometry)))
+                 ORDER BY e.is_primary DESC, e.id) FILTER (WHERE e.id IS NOT NULL), '[]') AS entrances
          FROM facilities f LEFT JOIN truck_entrances e ON e.facility_id = f.id
          ${where} GROUP BY f.id ORDER BY f.name`,
       bbox ? [...bbox] : [],
     );
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      kind: r.kind,
-      location: { lng: r.lng, lat: r.lat },
-      ...(r.address ? { address: r.address } : {}),
-      externalIds: r.external_ids,
-      truckEntrances: r.entrances as TruckEntrance[],
-      requiresTwic: r.requires_twic,
-      provenance: r.provenance,
-    }));
+    return rows.map((r) =>
+      FacilitySchema.parse({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        street_address: r.street_address,
+        truck_entrances: (r.entrances as Array<Record<string, unknown>>).map((e) => ({
+          ...e,
+          verified_at: e.verified_at ? new Date(e.verified_at as string).toISOString() : null,
+        })),
+        receiving_office: r.receiving_office,
+        staging_area: r.staging_area,
+        docks: r.docks,
+        notes: r.notes,
+        verification_state: r.verification_state,
+        requires_twic: r.requires_twic,
+      }),
+    );
   }
 
   async facility(id: string): Promise<Facility | null> {
@@ -59,15 +65,17 @@ export class PgRepository implements Repository {
          FROM sponsored_listings WHERE ${where}`,
       params,
     );
-    return rows.map((r) => ({
-      id: r.id,
-      ...(r.facility_id ? { facilityId: r.facility_id } : {}),
-      title: r.title,
-      location: { lng: r.lng, lat: r.lat },
-      label: 'Sponsored' as const,
-      activeFrom: new Date(r.active_from).toISOString(),
-      activeTo: new Date(r.active_to).toISOString(),
-    }));
+    return rows.map((r) =>
+      SponsoredListingSchema.parse({
+        id: r.id,
+        facility_id: r.facility_id,
+        title: r.title,
+        location: { lng: r.lng, lat: r.lat },
+        label: 'Sponsored',
+        active_from: iso(r.active_from),
+        active_to: iso(r.active_to),
+      }),
+    );
   }
 
   async latestWaitTimes(ids: string[]): Promise<WaitTimeObservation[]> {
@@ -77,12 +85,7 @@ export class PgRepository implements Repository {
          FROM wait_time_observations WHERE facility_id = ANY($1) ORDER BY facility_id, observed_at DESC`,
       [ids],
     );
-    return rows.map((r) => ({
-      facilityId: r.facility_id,
-      observedAt: new Date(r.observed_at).toISOString(),
-      waitMinutes: r.wait_minutes,
-      source: r.source,
-    }));
+    return rows.map((r) => WaitTimeObservationSchema.parse({ ...r, observed_at: iso(r.observed_at) }));
   }
 
   async ping(): Promise<boolean> {

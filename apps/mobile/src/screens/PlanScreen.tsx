@@ -1,23 +1,33 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MapView } from '../components/MapView';
 import { RouteCard } from '../components/RouteCard';
 import { RouteLine } from '../components/RouteLine';
+import { Button } from '../components/ui';
 import { useLocation } from '../location/LocationContext';
 import { useNav } from '../navigation/NavContext';
 import { activeRoute } from '../navigation/navState';
-import { colors, space, touch } from '../theme';
+import { useProfiles } from '../profiles/ProfileContext';
+import { colors, space } from '../theme';
 
 /**
  * Plan a trip: long-press the map to drop a destination, get truck-safe routes from our API,
  * pick one, start. (Address search needs a geocoder — a metered provider, not yet chosen.)
  */
-export function PlanScreen() {
+export function PlanScreen({ onOpenProfiles }: { onOpenProfiles: () => void }) {
   const { state, dispatch } = useNav();
   const { permission } = useLocation();
+  const { active, completeness, status } = useProfiles();
+  const routable = completeness?.complete === true;
 
   return (
     <View style={styles.fill} testID="plan-screen">
+      <View style={styles.profileBar} testID="profile-bar">
+        <Text style={styles.profileText} numberOfLines={1}>
+          {active ? `Routing as: ${active.name}` : status === 'loading' ? 'Loading truck profiles…' : 'No truck profile'}
+        </Text>
+        <Button label="Trucks" kind="secondary" onPress={onOpenProfiles} testID="open-profiles" />
+      </View>
       <MapView onLongPress={(at) => dispatch({ type: 'SET_DESTINATION', destination: at })}>
         <RouteLine route={activeRoute(state)} destination={state.destination} />
       </MapView>
@@ -26,6 +36,19 @@ export function PlanScreen() {
   );
 
   function panel(): React.ReactNode {
+    // No route of any kind without a complete truck profile — and no guessed stand-in.
+    if (status !== 'loading' && !routable && state.phase !== 'navigating' && state.phase !== 'rerouting') {
+      return (
+        <View testID="complete-profile">
+          <Text style={[styles.hint, styles.blocker]}>
+            {completeness?.message ?? 'Add your truck profile — DrayVision plans routes for your exact rig.'}
+          </Text>
+          <View style={styles.row}>
+            <Button label={active ? 'Complete truck profile' : 'Add truck profile'} onPress={onOpenProfiles} testID="complete-profile-button" />
+          </View>
+        </View>
+      );
+    }
     if (permission === 'denied') return <Text style={styles.hint}>Location permission is off — DrayVision needs it to route from where you are.</Text>;
     switch (state.phase) {
       case 'idle':
@@ -41,7 +64,7 @@ export function PlanScreen() {
           <>
             <ScrollView style={styles.cards}>
               {state.routes.map((r, i) => (
-                <RouteCard key={r.id} route={r} selected={i === state.selected} onPress={() => dispatch({ type: 'SELECT', index: i })} />
+                <RouteCard key={r.route_id} route={r} selected={i === state.selected} onPress={() => dispatch({ type: 'SELECT', index: i })} />
               ))}
             </ScrollView>
             <View style={styles.row}>
@@ -68,22 +91,14 @@ export function PlanScreen() {
   }
 }
 
-function Button({ label, onPress, kind = 'primary', testID }: { label: string; onPress: () => void; kind?: 'primary' | 'secondary'; testID?: string }) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={[styles.button, kind === 'secondary' && styles.secondary]}>
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   panel: { backgroundColor: colors.bg, padding: space.md, maxHeight: '45%' },
   cards: { flexGrow: 0 },
   row: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
   hint: { color: colors.muted, fontSize: 17, textAlign: 'center', paddingVertical: space.sm },
+  blocker: { color: colors.warn, fontWeight: '600' },
+  profileBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, backgroundColor: colors.bg },
+  profileText: { flex: 3, color: colors.text, fontSize: 16, fontWeight: '600' },
   error: { color: colors.danger },
-  button: { flex: 1, minHeight: touch.minTarget, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  secondary: { backgroundColor: colors.surface },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
 });

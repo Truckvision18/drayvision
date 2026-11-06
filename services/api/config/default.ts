@@ -76,6 +76,7 @@ export const defaults: Omit<AppConfig, 'environment'> = {
     hazardMatchRadiusM: 25,
     blockOnFail: true,
     clearanceWarnBandM: 0.3,
+    minConfidenceToClear: 0.8,
   },
   refresh: {
     feeds511Seconds: 300,
@@ -86,6 +87,7 @@ export const defaults: Omit<AppConfig, 'environment'> = {
   routing: {
     timeoutMs: 10_000,
     defaultValhallaUrl: 'http://localhost:8002',
+    departureBucketSeconds: 900,
     alternates: 2,
     truckCosting: {
       useHighways: 1.0, // drayage: prefer highways over local streets
@@ -94,6 +96,12 @@ export const defaults: Omit<AppConfig, 'environment'> = {
       useTracks: 0.0, // never route a container rig onto tracks
       topSpeedKph: 100, // ~62 mph — realistic loaded-rig ETA
     },
+  },
+  auth: {
+    mode: 'dev-header',
+  },
+  profiles: {
+    maxPerAccount: 20,
   },
   rights: {
     allowUnverified: true,

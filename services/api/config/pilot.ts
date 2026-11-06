@@ -26,4 +26,6 @@ export const pilot: DeepPartial<AppConfig> = {
     monthlyUsd: { total: 2_500 },
   },
   rights: { allowUnverified: false },
+  // Never trust a client-supplied account id outside dev/test.
+  auth: { mode: 'token' },
 };

@@ -90,6 +90,8 @@ export const configSchema = z.object({
     blockOnFail: z.boolean(),
     /** Clearance within this many metres of rig height is a warning, not a pass. */
     clearanceWarnBandM: z.number().nonnegative(),
+    /** Below this confidence a restriction can still FAIL a route, but can never clear it (→ warning). */
+    minConfidenceToClear: z.number().min(0).max(1),
   }),
   refresh: z.object({
     feeds511Seconds: positiveInt,
@@ -100,6 +102,8 @@ export const configSchema = z.object({
   routing: z.object({
     timeoutMs: positiveInt,
     defaultValhallaUrl: z.string().url(),
+    /** Departure times within the same bucket share cached routes. */
+    departureBucketSeconds: positiveInt,
     /** Extra alternative routes to request (each is safety-validated independently). */
     alternates: z.number().int().min(0).max(3),
     /** Valhalla truck costing preferences, 0 (avoid) .. 1 (prefer). Hard limits come from the TruckProfile. */
@@ -111,6 +115,18 @@ export const configSchema = z.object({
       /** km/h cap applied to ETA calculations; null = engine default. */
       topSpeedKph: z.number().positive().nullable(),
     }),
+  }),
+  /** How requests are tied to an account (profiles are stored per account). */
+  auth: z.object({
+    /**
+     * dev-header: trust an `x-account-id` header — local dev and tests ONLY.
+     * token: real sign-in (not built yet) — every account-scoped call answers 501 until it is.
+     */
+    mode: z.enum(['dev-header', 'token']),
+  }),
+  profiles: z.object({
+    /** Saved truck profiles per account (several tractors / loads). */
+    maxPerAccount: positiveInt,
   }),
   rights: z.object({
     /** Allow sources whose rights entry is still "unverified". Must be false in pilot/prod. */

@@ -1,19 +1,21 @@
-import type { Camera, Hazard, LineCoordinates, LngLat, Route, TollEstimate, TruckProfile } from '@drayvision/shared';
+import type { Camera, CompleteTruckProfile, EngineRoute, LineCoordinates, LngLat, TollItem, TrafficEvent, TransponderNetwork } from '@drayvision/shared';
+import { HttpError } from '../errors.js';
 
 export type BBox = readonly [minLng: number, minLat: number, maxLng: number, maxLat: number];
 
-export interface RouteRequest {
+/** What the engine is asked. Only a COMPLETE profile can ever reach a routing engine. */
+export interface EngineRouteRequest {
   origin: LngLat;
   destination: LngLat;
-  profile: TruckProfile;
+  profile: CompleteTruckProfile;
 }
 
-/** What a routing engine returns before safety validation / toll enrichment. */
-export type RawRoute = Omit<Route, 'validation' | 'hazards' | 'tolls'>;
+/** Engine output shape — defined once in @drayvision/shared. */
+export type { EngineRoute };
 
 export interface RoutingProvider {
   readonly name: string;
-  route(req: RouteRequest): Promise<RawRoute[]>;
+  route(req: EngineRouteRequest): Promise<EngineRoute[]>;
   /** Graph version (OSM extract date) or null if unknown. */
   status(): Promise<{ up: boolean; graphVersion: string | null }>;
 }
@@ -35,13 +37,16 @@ export interface TileProvider {
 export interface TollProvider {
   readonly name: string;
   readonly rightsId: string;
-  estimate(geometry: LineCoordinates, profile: TruckProfile): Promise<Omit<TollEstimate, 'cached'>>;
+  estimate(
+    geometry: LineCoordinates,
+    profile: CompleteTruckProfile,
+  ): Promise<{ total: number; items: TollItem[]; transponders_applied: TransponderNetwork[]; provider: string }>;
 }
 
 export interface TrafficProvider {
   readonly name: string;
   readonly rightsId: string;
-  events(bbox: BBox): Promise<Hazard[]>;
+  events(bbox: BBox): Promise<TrafficEvent[]>;
 }
 
 export interface CameraProvider {
@@ -66,20 +71,19 @@ export interface Providers {
   imagery: ImageryProvider;
 }
 
-export class ProviderNotImplementedError extends Error {
-  readonly statusCode = 501;
+export class ProviderNotImplementedError extends HttpError {
   constructor(provider: string, phase: string) {
-    super(`${provider} live integration lands in ${phase}; use the mock provider until then`);
+    super(501, 'NOT_IMPLEMENTED', `${provider} live integration lands in ${phase}; use the mock provider until then`);
   }
 }
 
-/** An upstream provider failed or was unreachable. Surfaced to clients as 502 with a safe message. */
-export class UpstreamError extends Error {
+/** An upstream provider failed or was unreachable. Surfaced as 502 (or 404) with a safe message. */
+export class UpstreamError extends HttpError {
   constructor(
     provider: string,
-    readonly statusCode: 502 | 404 = 502,
+    status: 502 | 404 = 502,
     readonly detail?: string,
   ) {
-    super(statusCode === 404 ? `${provider}: not found` : `${provider} unavailable`);
+    super(status, status === 404 ? 'NOT_FOUND' : 'UPSTREAM_UNAVAILABLE', status === 404 ? `${provider}: not found` : `${provider} unavailable`);
   }
 }

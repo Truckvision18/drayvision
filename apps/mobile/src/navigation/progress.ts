@@ -25,9 +25,9 @@ export interface RouteIndex {
 
 export function indexRoute(route: Route): RouteIndex {
   const cumulative = cumulativeDistances(route.geometry);
-  const maneuvers = route.legs.flatMap((l) => l.maneuvers);
+  const maneuvers = route.maneuvers;
   const last = cumulative.at(-1) ?? 0;
-  const maneuverAlongM = maneuvers.map((m) => cumulative[Math.min(m.beginShapeIndex, cumulative.length - 1)] ?? 0);
+  const maneuverAlongM = maneuvers.map((m) => cumulative[Math.min(m.begin_shape_index, cumulative.length - 1)] ?? 0);
   return { route, maneuvers, cumulative, maneuverAlongM, totalM: last };
 }
 
@@ -60,7 +60,7 @@ export function computeProgress(idx: RouteIndex, fix: Fix, lastAlongM: number, c
     }
   }
   const remainingM = Math.max(0, idx.totalM - alongM);
-  const remainingS = idx.totalM > 0 ? (idx.route.durationS * remainingM) / idx.totalM : 0;
+  const remainingS = idx.totalM > 0 ? (idx.route.duration_s * remainingM) / idx.totalM : 0;
   return {
     snapped: proj.point,
     crossTrackM: proj.distanceM,
@@ -128,7 +128,7 @@ export function trackFix(
   if (m && crossed !== undefined) {
     const key = `${progress.nextManeuverIndex}@${crossed}`;
     if (!next.announced.includes(key)) {
-      events.push({ type: 'announce', maneuverIndex: progress.nextManeuverIndex, text: m.verbalInstruction ?? m.instruction, atM: crossed });
+      events.push({ type: 'announce', maneuverIndex: progress.nextManeuverIndex, text: m.verbal_instruction ?? m.instruction, atM: crossed });
       next.announced = [...next.announced, key];
     }
   }

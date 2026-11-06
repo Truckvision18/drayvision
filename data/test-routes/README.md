@@ -11,15 +11,18 @@ Format — `{ "routes": GoldenRoute[] }`:
   "description": "What this case protects against",
   "origin": { "lng": 0, "lat": 0 },
   "destination": { "lng": 0, "lat": 0 },
-  "profile": { /* TruckProfile */ },
-  "expect": {
-    "mustAvoidHazardIds": ["restriction-id"],
-    "status": "pass"            // or "fail" for cases that must be rejected
+  "profile": {                // a COMPLETE rig — never a guessed or default profile
+    "height_m": 4.11, "weight_kg": 36287, "length_m": 21.03, "width_m": 2.59,
+    "axle_count": 5, "hazmat": { "carrying": false, "classes": [] }
   },
-  "provenance": { "addedBy": "name", "addedAt": "YYYY-MM-DD", "reason": "incident / survey ref" }
+  "expect": {
+    "must_avoid_hazard_ids": ["restriction-id"],
+    "status": "PASS"            // or "FAIL" for cases that must be rejected
+  },
+  "provenance": { "added_by": "name", "added_at": "YYYY-MM-DD", "reason": "incident / survey ref" }
 }
 ```
 
-`test/golden-routes.test.ts` validates every file here. Once Valhalla tiles exist (Phase 4) the
+`test/scaffold.test.ts` validates every file here against the shared schemas. Once Valhalla tiles exist (Phase 4) the
 same corpus runs against the live router (`make golden`). The Phase 14 gate requires the corpus
 to be populated and 100 % passing.

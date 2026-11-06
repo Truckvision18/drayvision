@@ -6,6 +6,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CompleteTruckProfileSchema, FacilitySchema, HazardSchema, LngLatSchema, SafetyStatusSchema } from '@drayvision/shared';
+import { z } from 'zod';
 import { SECRET_ENV_VARS } from '../services/api/config/index.js';
 
 const root = resolve(import.meta.dirname, '..');
@@ -51,32 +53,48 @@ describe('repository hygiene', () => {
   });
 });
 
-describe('data directories', () => {
-  it.each(['restrictions', 'facilities'])('data/%s has a versioned manifest and well-formed record files', (dir) => {
-    const manifest = JSON.parse(read(`data/${dir}/manifest.json`)) as { datasetVersion?: string };
-    expect(manifest.datasetVersion).toBeTruthy();
-    for (const f of readdirSync(join(root, 'data', dir)).filter((x) => x.endsWith('.json') && x !== 'manifest.json')) {
-      const body = JSON.parse(read(`data/${dir}/${f}`)) as { records?: Array<{ id?: string; provenance?: { source?: string; rightsId?: string } }> };
-      expect(Array.isArray(body.records), f).toBe(true);
-      for (const r of body.records ?? []) {
-        expect(r.id, `${f}: record id`).toBeTruthy();
-        expect(r.provenance?.source, `${f}/${r.id}: provenance.source`).toBeTruthy();
-        expect(r.provenance?.rightsId, `${f}/${r.id}: provenance.rightsId`).toBeTruthy();
-      }
+describe('data directories validate against the shared schemas', () => {
+  const records = (dir: string) =>
+    readdirSync(join(root, 'data', dir))
+      .filter((x) => x.endsWith('.json') && x !== 'manifest.json')
+      .map((f) => [f, JSON.parse(read(`data/${dir}/${f}`))] as const);
+
+  it.each(['restrictions', 'facilities'])('data/%s has a versioned manifest', (dir) => {
+    expect((JSON.parse(read(`data/${dir}/manifest.json`)) as { datasetVersion?: string }).datasetVersion).toBeTruthy();
+  });
+
+  it('every restriction record is a valid Hazard', () => {
+    for (const [f, body] of records('restrictions')) {
+      const r = z.object({ records: z.array(HazardSchema) }).safeParse(body);
+      expect(r.success, `${f}: ${r.success ? '' : JSON.stringify(r.error.issues[0])}`).toBe(true);
     }
   });
 
-  it('golden route corpus files are well-formed', () => {
-    const dir = join(root, 'data/test-routes');
-    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
-      const body = JSON.parse(readFileSync(join(dir, f), 'utf8')) as {
-        routes?: Array<{ id?: string; origin?: unknown; destination?: unknown; profile?: unknown; expect?: { status?: string }; provenance?: unknown }>;
-      };
-      expect(Array.isArray(body.routes), f).toBe(true);
-      for (const r of body.routes ?? []) {
-        expect(r.id && r.origin && r.destination && r.profile && r.provenance, `${f}/${r.id}`).toBeTruthy();
-        expect(['pass', 'warn', 'fail']).toContain(r.expect?.status);
-      }
+  it('every facility record is a valid Facility', () => {
+    for (const [f, body] of records('facilities')) {
+      const r = z.object({ records: z.array(FacilitySchema) }).safeParse(body);
+      expect(r.success, `${f}: ${r.success ? '' : JSON.stringify(r.error.issues[0])}`).toBe(true);
+    }
+  });
+
+  it('golden routes use complete truck profiles and shared types', () => {
+    // A golden case must pin a fully specified rig — a guessed profile would make it meaningless.
+    const Golden = z.object({
+      routes: z.array(
+        z.object({
+          id: z.string().min(1),
+          description: z.string().min(1),
+          origin: LngLatSchema,
+          destination: LngLatSchema,
+          profile: CompleteTruckProfileSchema.pick({ height_m: true, weight_kg: true, length_m: true, width_m: true, axle_count: true, hazmat: true }),
+          expect: z.object({ status: SafetyStatusSchema, must_avoid_hazard_ids: z.array(z.string()).default([]) }),
+          provenance: z.object({ added_by: z.string().min(1), added_at: z.string().min(1), reason: z.string().min(1) }),
+        }),
+      ),
+    });
+    for (const f of readdirSync(join(root, 'data/test-routes')).filter((x) => x.endsWith('.json'))) {
+      const r = Golden.safeParse(JSON.parse(read(`data/test-routes/${f}`)));
+      expect(r.success, `${f}: ${r.success ? '' : JSON.stringify(r.error.issues[0])}`).toBe(true);
     }
   });
 });
